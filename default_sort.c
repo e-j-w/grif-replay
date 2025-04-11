@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "grif-format.h"
+#include "smol-format.h"
 #include "histogram.h"
 #include "grif-angles.h"
 #include "default_sort.h"
@@ -40,6 +41,7 @@ extern int init_coinc_histos(Config *cfg);
 extern int fill_chan_histos(Grif_event *ptr);
 extern int fill_singles_histos(Grif_event *ptr);
 extern int fill_coinc_histos(int win_idx, int frag_idx);
+extern int fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
 
 // odb tables need to be transferred into config, which is saved with histos
 int init_default_histos(Config *cfg, Sort_status *arg)
@@ -235,7 +237,7 @@ int apply_gains(Grif_event *ptr)
    return(0);
 }
 
-int default_sort(int win_idx, int frag_idx, int flag)
+int default_sort(int win_idx, int frag_idx, int flag, FILE *out)
 {
    Grif_event *ptr;
    int i;
@@ -256,6 +258,7 @@ int default_sort(int win_idx, int frag_idx, int flag)
       if( i==frag_idx ){ break; }
    }
    fill_coinc_histos(win_idx, frag_idx);
+   fill_smol_entry(out, win_idx, frag_idx);
    return(0);
 }
 
@@ -2049,6 +2052,92 @@ if( i == frag_idx ){ break; }
 if( ++i == MAX_COINC_EVENTS ){ i = 0; } // wrap
 }// end of while
 return(0);
+}
+
+//writes data for a single sorted_evt in a SMOL tree
+int fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
+{
+  Grif_event *alt, *ptr = &grif_event[win_idx];
+  int dt, abs_dt, i, gg_gate=25;
+  int pos, c1, c2, index;
+  int global_window_size = 100; // size in grif-replay should be double this
+
+  // Protect yourself
+  if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
+      fprintf(stderr,"presort error: ignored event in chan:%d\n",ptr->chan );
+      return(-1);
+  }
+
+  // initialize SMOL tree event
+  sorted_evt sortedEvt;
+  memset(&sortedEvt,0,sizeof(sorted_evt));   
+  uint8_t numHPGeHits = 0;
+  uint8_t suppressorFired = 0;
+
+  if( (i=win_idx) == MAX_COINC_EVENTS ){ i = 0; } // wrap
+  // check all events in window
+  while( 1 ){
+
+    // Protect yourself
+    if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
+        fprintf(stderr,"presort error: ignored event in chan:%d\n",alt->chan );
+        return(-1);
+    }
+
+    //abs_dt = dt = ptr->ts - alt->ts; if( dt < 0 ){ abs_dt = -1*dt; }
+    //if( abs_dt > global_window_size ){ break; }
+
+    switch(ptr->subsys){
+      case SUBSYS_HPGE: // Ge
+        // Only use GRGa
+        if(output_table[ptr->chan] == 1){
+
+          if(sortedEvt.header.evtTimeNs == 0){
+            sortedEvt.header.evtTimeNs = (double)(ptr->ts); //why is time an integer? (why not...?)
+          }
+          sortedEvt.hpgeHit[numHPGeHits].energy = offsets[ptr->chan]+((float)ptr->energy)*((float)(gains[ptr->chan]+((float)ptr->energy)*quads[ptr->chan]));
+          sortedEvt.hpgeHit[numHPGeHits].timeOffsetNs = (float)(ptr->ts - sortedEvt.header.evtTimeNs);
+          sortedEvt.hpgeHit[numHPGeHits].core = (uint8_t)(crystal_table[ptr->chan]);
+          if(sortedEvt.hpgeHit[numHPGeHits].core >= 64){
+            fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt.hpgeHit[numHPGeHits].core);
+            goto NEXT_SMOL_EVT;
+          }
+          numHPGeHits++;
+
+        }
+      break; // outer-switch-case-GE
+
+      case SUBSYS_BGO: // bgo matrices
+      //at least one suppressor fired
+      sortedEvt.header.metadata |= (uint8_t)(1U << 1);
+      break;
+
+      default: 
+      
+      break; // Unrecognized or unprocessed subsys type
+    }// end of switch(ptr)
+
+    //finalize sorted event data
+    sortedEvt.header.metadata |= (uint8_t)(1U << 7); //set data validation bit
+    sortedEvt.header.numHPGeHits = numHPGeHits;
+
+NEXT_SMOL_EVT:
+
+    if( i == frag_idx ){ break; }
+    if( ++i == MAX_COINC_EVENTS ){ i = 0; } // wrap
+
+  }// end of while
+
+  //write sorted event to SMOL tree
+  fwrite(&sortedEvt.header,sizeof(evt_header),1,out);
+  //write hits
+  for(int i = 0; i<numHPGeHits;i++){
+    fwrite(&sortedEvt.hpgeHit[i].timeOffsetNs,sizeof(float),1,out);
+    fwrite(&sortedEvt.hpgeHit[i].energy,sizeof(float),1,out);
+    fwrite(&sortedEvt.hpgeHit[i].core,sizeof(uint8_t),1,out);
+  }
+
+  return(0);
 }
 
 int reorder_rcmp_US_strips(int c1){

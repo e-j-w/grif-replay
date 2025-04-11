@@ -87,6 +87,8 @@ extern int gen_derived_odb_tables();
 extern int open_next_subrun(Sort_status *arg);
 extern int read_odb_items(int len, int *bank_data);
 
+#include <stdint.h> //allows uint8_t and similiar types
+
 #endif
 
 // dynamically change #reorder_slots

@@ -24,6 +24,7 @@ static Sort_status sort_status;
 volatile int shutdown_server = 0;
 static pthread_t web_thread;
 static void online_loop(Config *cfg, Sort_status *sort);
+FILE *output_tree;
 int main(int argc, char *argv[])
 {
    Sort_status *sort = &sort_status;
@@ -76,12 +77,14 @@ static int done_events;
 extern void grif_main(Sort_status *arg);
 extern void reorder_main(Sort_status *arg);
 extern void reorder_out(Sort_status *arg);
-extern void sort_main(Sort_status *arg);
+extern void sort_main(Sort_status *arg, FILE *out);
 static pthread_t midas_thread, grif_thread, ordthrd, ordthr2;
 static int reorder_save, singlethread_save, sortthread_save;
 extern int (*midas_module_main)(Sort_status *);
 int sort_next_file(Config *cfg, Sort_status *sort)
 {
+   char tmp[64];
+   FILE *smolfp;
    time_t end, start=time(NULL);
    done_events = 0;
    presort_window_start = sort_window_start = 0;
@@ -117,7 +120,18 @@ int sort_next_file(Config *cfg, Sort_status *sort)
       init_default_histos(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
-      sort_main(sort); // this exits when sort is done
+      if(strlen(cfg->histo_dir) > 0 ){
+         sprintf(tmp,"%s/run%05d.smol", cfg->histo_dir, sort->run_number);
+         if( (smolfp=fopen(tmp,"w")) != NULL ){
+            uint64_t header = 0U; //placeholder
+            fwrite(&header,sizeof(uint64_t),1,smolfp);
+            sort_main(sort,smolfp); // this exits when sort is done
+            fclose(smolfp);
+         } else {
+            printf("Can't open SMOL tree: %s to write\n", tmp);
+            return(0);
+         }
+      }
 
       sort->shutdown_midas = 1;
       pthread_join(midas_thread, NULL);
@@ -144,7 +158,7 @@ static void online_loop(Config *cfg, Sort_status *sort)
 {
    time_t end, start;
    char tmp[64];
-   FILE *fp;
+   FILE *fp, *smolfp;
    pthread_create(&midas_thread, NULL, (void* (*)(void*))midas_module_main, sort);
    sort->odb_ready = 0; // only done on module load atm.
    while(1){
@@ -172,7 +186,18 @@ static void online_loop(Config *cfg, Sort_status *sort)
       init_default_histos(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
-      sort_main(sort); // this exits when sort is done
+      if(strlen(cfg->histo_dir) > 0 ){
+         sprintf(tmp,"%s/run%05d.smol", cfg->histo_dir, sort->run_number);
+         if( (smolfp=fopen(tmp,"w")) != NULL ){
+            uint64_t header = 0U; //placeholder
+            fwrite(&header,sizeof(uint64_t),1,smolfp);
+            sort_main(sort,smolfp); // this exits when sort is done
+            fclose(smolfp);
+         } else {
+            printf("Can't open SMOL tree: %s to write\n", tmp);
+            return(0);
+         }
+      }
 
       sort->shutdown_midas = 1;
       // DO NOT SHTUDOWN MIDAS THREAD
@@ -242,7 +267,7 @@ void show_sort_state()
 }
 Sort_status *get_sort_status(){ return( &sort_status ); }
 
-void sort_main(Sort_status *arg)
+void sort_main(Sort_status *arg, FILE *out)
 {
    int i, len, nxtpos, rd_avail;
    static long grifevent_nxtpos;
@@ -255,7 +280,7 @@ void sort_main(Sort_status *arg)
       rd_avail = grifevent_wrpos - grifevent_nxtpos;
       if( arg->grif_sort_done && rd_avail < 1 ){ break; }
       if( rd_avail < 1 ){ usleep(usecs); continue; }
-      process_event(&grif_event[nxtpos], nxtpos);
+      process_event(&grif_event[nxtpos], nxtpos, out);
       nxtpos = ++grifevent_nxtpos % MAX_COINC_EVENTS;
    }
    printf("sort_main finished\n");
@@ -264,7 +289,7 @@ void sort_main(Sort_status *arg)
 
 static int proc_calls, sorted, skipped, prefull, sortfull, completed_events;
 // called when each new event read into ptr -> list[slot]
-int process_event(Grif_event *ptr, int slot)
+int process_event(Grif_event *ptr, int slot, FILE *out)
 {
    time_t cur_time = time(NULL);
    static int calls, prv_call;
@@ -286,7 +311,7 @@ int process_event(Grif_event *ptr, int slot)
       init_default_histos(configs[1], &sort_status); sort_status.odb_done = 1;
    }
    apply_gains(ptr);
-   insert_presort_win(ptr, slot);
+   insert_presort_win(ptr, slot, out);
    return(0);
 }
 
@@ -315,7 +340,7 @@ extern char chan_name[MAX_DAQSIZE][CHAN_NAMELEN];
 // add event to presort window (event has just been read in)
 //    recalculate coincwin (sorting any events leaving window)
 // => final win of run won't be sorted, as these events will not leave window
-int insert_presort_win(Grif_event *ptr, int slot)
+int insert_presort_win(Grif_event *ptr, int slot, FILE *out)
 {
    int window_width = 500; // 5us to capture all pileup events - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
@@ -360,14 +385,14 @@ int insert_presort_win(Grif_event *ptr, int slot)
       // NOTE event[slot] is out of window - use slot-1 as window-end
       if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
       pre_sort(presort_window_start, win_end);
-      insert_sort_win(alt, presort_window_start); // add event to next window
+      insert_sort_win(alt, presort_window_start, out); // add event to next window
       if( ++presort_window_start >= MAX_COINC_EVENTS ){ presort_window_start=0; } // WRAP
    }
    return(0);
 }
 
 // add event to main sort window (event has just left presort window)
-int insert_sort_win(Grif_event *ptr, int slot)
+int insert_sort_win(Grif_event *ptr, int slot, FILE *out)
 {
    int window_width = 200; // 2us - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
@@ -403,7 +428,7 @@ int insert_sort_win(Grif_event *ptr, int slot)
       // NOTE event[slot] is out of window - use slot-1 as window-end
       if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
       if( alt->chan != -1 ){ ++sorted;
-         default_sort(sort_window_start, win_end, SORT_ONE);
+         default_sort(sort_window_start, win_end, SORT_ONE, out);
          //user_sort(window_start, win_end, SORT_ONE);
       } else { ++skipped; }
       if( ++sort_window_start >= MAX_COINC_EVENTS ){ sort_window_start=0; } // WRAP
@@ -423,7 +448,7 @@ int insert_sort_win(Grif_event *ptr, int slot)
 //    (previously would loop over events already in window to see if they are now OUT)
 // NEW method - if first event is OUT ...
 //    build an event with all fragments before current fragment (which starts a new event)
-int build_event(Grif_event *ptr, int slot)
+int build_event(Grif_event *ptr, int slot, FILE *out)
 {
    int window_width = 200; // 2us - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
@@ -439,16 +464,16 @@ int build_event(Grif_event *ptr, int slot)
    if( dt < window_width ){ return(0); }
 
    if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
-   sort_built_event(window_start, win_end);
+   sort_built_event(window_start, win_end, out);
 
    window_start = slot;
    return(0);
 }
 
-int sort_built_event(int window_start, int win_end)
+int sort_built_event(int window_start, int win_end, FILE *out)
 {
    pre_sort(window_start, win_end); // only fold of first fragment is set
-   default_sort(window_start, win_end, SORT_ALL);
+   default_sort(window_start, win_end, SORT_ALL, out);
    //user_sort(window_start, win_end, SORT_ALL);
    return(0);
 }

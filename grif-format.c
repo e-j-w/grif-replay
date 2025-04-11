@@ -109,7 +109,7 @@ void grif_main(Sort_status *arg)
          usleep(usecs);
       }
       if( unpack_grif3_event(evstart, len, ptr, waveforms) == 0 ){
-         //if( !arg->sort_thread ){ process_event(ptr, wrpos); }
+         //if( !arg->sort_thread ){ process_event(ptr, wrpos, out); }
          //if( ( ++grif_evcount % 1000000) == 0 ){
          //   fprintf(stderr, "%10d events ...\n", grif_evcount);
          //}
@@ -125,7 +125,7 @@ void grif_main(Sort_status *arg)
    return;
 }
 
-int process_grif3_bank(unsigned *evntbuf, int length)
+int process_grif3_bank(unsigned *evntbuf, int length, FILE *out)
 {
    unsigned *bufend = evntbuf+length, *evstrt=evntbuf;
    unsigned *ptr = evntbuf;
@@ -137,7 +137,7 @@ int process_grif3_bank(unsigned *evntbuf, int length)
       evt = &grif_event[wrpos];
       if( ((*(ptr++)>>28)&0xff) == 0xE ){
          if( unpack_grif3_event(evstrt, ptr-evstrt, evt, 0) == 0 ){
-            process_event(evt, wrpos);
+            process_event(evt, wrpos, out);
          }
          evstrt=ptr; ++grifevent_wrpos;
       }

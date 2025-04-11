@@ -2057,35 +2057,26 @@ return(0);
 //writes data for a single sorted_evt in a SMOL tree
 int fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
 {
-  Grif_event *alt, *ptr = &grif_event[win_idx];
-  int dt, abs_dt, i, gg_gate=25;
-  int pos, c1, c2, index;
-  int global_window_size = 100; // size in grif-replay should be double this
 
-  // Protect yourself
-  if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
-      fprintf(stderr,"presort error: ignored event in chan:%d\n",ptr->chan );
-      return(-1);
-  }
+  int i;
 
   // initialize SMOL tree event
   sorted_evt sortedEvt;
   memset(&sortedEvt,0,sizeof(sorted_evt));   
   uint8_t numHPGeHits = 0;
-  uint8_t suppressorFired = 0;
 
   if( (i=win_idx) == MAX_COINC_EVENTS ){ i = 0; } // wrap
+
   // check all events in window
   while( 1 ){
 
+    Grif_event *ptr = &grif_event[i];
+
     // Protect yourself
     if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
-        fprintf(stderr,"presort error: ignored event in chan:%d\n",alt->chan );
+        fprintf(stderr,"presort error: ignored event in chan:%d\n",ptr->chan );
         return(-1);
     }
-
-    //abs_dt = dt = ptr->ts - alt->ts; if( dt < 0 ){ abs_dt = -1*dt; }
-    //if( abs_dt > global_window_size ){ break; }
 
     switch(ptr->subsys){
       case SUBSYS_HPGE: // Ge
@@ -2117,10 +2108,6 @@ int fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
       break; // Unrecognized or unprocessed subsys type
     }// end of switch(ptr)
 
-    //finalize sorted event data
-    sortedEvt.header.metadata |= (uint8_t)(1U << 7); //set data validation bit
-    sortedEvt.header.numHPGeHits = numHPGeHits;
-
 NEXT_SMOL_EVT:
 
     if( i == frag_idx ){ break; }
@@ -2128,13 +2115,18 @@ NEXT_SMOL_EVT:
 
   }// end of while
 
+  //finalize sorted event data
+  sortedEvt.header.metadata |= (uint8_t)(1U << 7); //set data validation bit
+  sortedEvt.header.numHPGeHits = numHPGeHits;
+
   //write sorted event to SMOL tree
   fwrite(&sortedEvt.header,sizeof(evt_header),1,out);
   //write hits
-  for(int i = 0; i<numHPGeHits;i++){
-    fwrite(&sortedEvt.hpgeHit[i].timeOffsetNs,sizeof(float),1,out);
-    fwrite(&sortedEvt.hpgeHit[i].energy,sizeof(float),1,out);
-    fwrite(&sortedEvt.hpgeHit[i].core,sizeof(uint8_t),1,out);
+  for(int j = 0; j<numHPGeHits;j++){
+    fwrite(&sortedEvt.hpgeHit[j].timeOffsetNs,sizeof(float),1,out);
+    fwrite(&sortedEvt.hpgeHit[j].energy,sizeof(float),1,out);
+    fwrite(&sortedEvt.hpgeHit[j].core,sizeof(uint8_t),1,out);
+    //fprintf(stdout,"Hit %u - core: %u, energy: %f, time offset: %f\n",j,sortedEvt.hpgeHit[j].core,(double)sortedEvt.hpgeHit[j].energy,(double)sortedEvt.hpgeHit[j].timeOffsetNs);
   }
 
   return(0);

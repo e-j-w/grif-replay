@@ -4,6 +4,8 @@
 #define MAX_SCALAR_LEN   256
 #define MAX_COINC_EVENTS 1024
 
+#include <stdint.h> //allows uint8_t and similiar types
+
 // **************************************************************************
 // MANY VALUES IN THIS STRUCTURE HAVE TO BE ACCESSED USING A HARDCODED OFFSET
 // FROM THE START OF THE STRUCTURE - DO NOT CHANGE THE ORDERING OR
@@ -37,10 +39,10 @@ typedef struct griffin_fragment_struct { // was 74 bytes, now ?
 // midas-timestamp should be redundant and equal to BOR time+timestamp
 //   can just check this in midas part
 
-extern int process_event(Grif_event *ptr, int slot, FILE *out);
+extern uint64_t process_event(Grif_event *ptr, int slot, FILE *out);
 extern int apply_gains(Grif_event *ptr);
-extern int insert_presort_win(Grif_event *ptr, int slot, FILE *out);
-extern int insert_sort_win(Grif_event *ptr, int slot, FILE *out);
+extern uint64_t insert_presort_win(Grif_event *ptr, int slot, FILE *out);
+extern uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out);
 extern int GetIDfromAddress(unsigned short addr);
 
 // User sort function declarations

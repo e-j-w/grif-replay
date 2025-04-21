@@ -29,6 +29,8 @@
 #define SORT_ALL 0     // for built-events, sort all events in window at once
 #define SORT_ONE 1     //     not-built, sort events one-by-one as they leave window
 
+#include <stdint.h> //allows uint8_t and similiar types
+
 extern int debug;
 
 #define FILE_QLEN 256
@@ -55,6 +57,7 @@ typedef struct sortstatus_struct {
    volatile int  online_mode;
    volatile int  run_in_progress;
    volatile int  run_number;
+   uint64_t numSortedEvts;
 } Sort_status;
 
 extern void web_main(int *);

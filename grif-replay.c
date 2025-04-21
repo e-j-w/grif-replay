@@ -1,5 +1,5 @@
 /* read midas data files
- set sources=( grif-replay.c midas-format.c grif-format.c histogram.c web_server.c config.c reorder.c user_sort.c default_sort.c test_config.c )
+ set sources=( grif-replay.c midas-format.c grif-format.c config.c reorder.c user_sort.c default_sort.c test_config.c )
  gcc -g     -o grif-replay $sources -rdynamic -ldl -lm -lpthread
  gcc -g -O3 -o grif-replay $sources -rdynamic -ldl -lm -lpthread
 */
@@ -11,7 +11,6 @@
 #include <time.h>
 #include <pthread.h>
 #include "config.h"
-#include "histogram.h"
 #include "grif-format.h"
 #include "midas-format.h"
 
@@ -22,7 +21,6 @@ char midas_runtitle[SYS_PATH_LENGTH];
 Sort_metrics diagnostics;
 static Sort_status sort_status;
 volatile int shutdown_server = 0;
-static pthread_t web_thread;
 static void online_loop(Config *cfg, Sort_status *sort);
 FILE *output_tree;
 int main(int argc, char *argv[])
@@ -31,15 +29,12 @@ int main(int argc, char *argv[])
    int web_arg=1;  Config *cfg;
 
    sort->single_thread = 0;
-   pthread_create(&web_thread, NULL,(void* (*)(void*))web_main, &web_arg);
+   init_config();
    while( !shutdown_server ){ // monitor file queue and sort any added files
 
       if( sort->current_filenum == sort->final_filenum ){ sleep(1); continue; }
       copy_config(configs[0], configs[1]); // copy config0 to cfg1 for sorting
       cfg = configs[1];
-      if( sort->online_mode ){
-         online_loop(cfg, sort);
-      } else
       if( open_next_sortfiles(sort) == 0 ){
          sort_next_file(cfg, sort);
          fprintf(stdout,"DONE\n");
@@ -47,29 +42,7 @@ int main(int argc, char *argv[])
       }
       if( ++sort->current_filenum == FILE_QLEN ){ sort->current_filenum = 0; }
    }
-   pthread_join(web_thread, NULL);
    exit(0);
-}
-
-extern int frag_hist[MAX_COINC_EVENTS];
-void show_coinc_stats()
-{
-   char tmp[64];
-   int i, sum;
-   for(i=0; i<15; i++){
-      sprintf(tmp, "Coinc[%8d]:%d", i, frag_hist[i]);
-      printf("%-25s%c", tmp, (((i+1)%3)==0)?'\n':' ');
-   }
-   sum=0; for(; i<30; i++){ sum +=  frag_hist[i]; }
-   printf("Coinc[ 15-  29]:%d\n", sum);
-   sum=0; for(; i<100; i++){ sum +=  frag_hist[i]; }
-   printf("Coinc[ 30-  99]:%d\n", sum);
-   sum=0; for(; i<250; i++){ sum +=  frag_hist[i]; }
-   printf("Coinc[100- 249]:%d\n", sum);
-   sum=0; for(; i<500; i++){ sum +=  frag_hist[i]; }
-   printf("Coinc[250- 499]:%d\n", sum);
-   sum=0; for(; i<MAX_COINC_EVENTS; i++){ sum +=  frag_hist[i]; }
-   printf("Coinc[500-%4d]:%d\n", MAX_COINC_EVENTS, sum);
 }
 
 static int presort_window_start, sort_window_start;
@@ -116,8 +89,8 @@ int sort_next_file(Config *cfg, Sort_status *sort)
       while( !sort->odb_ready ){     // wait for midas thread to read odb event
          usleep(1);
       }
-      //user_sort_init();   // user histos already defined, but defaul histos
-      init_default_histos(configs[1], sort);     // depend on odb in datafile
+      
+      init_default_sort(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
       if(strlen(cfg->histo_dir) > 0 ){
@@ -147,13 +120,7 @@ int sort_next_file(Config *cfg, Sort_status *sort)
    cfg->midas_runtime    = diagnostics.midas_last_timestamp+1;
    cfg->midas_runtime   -= cfg->midas_start_time;
    memcpy(cfg->midas_title, midas_runtitle, SYS_PATH_LENGTH);
-   if( !sort->online_mode ){
-      write_histofile(cfg, sort->histo_fp);
-   } else {
-      unload_midas_module();
-   }
    printf("File took %ld seconds\n", end-start);
-   show_coinc_stats();
    return(0);
 }
 
@@ -186,7 +153,7 @@ static void online_loop(Config *cfg, Sort_status *sort)
          usleep(1);
       }
       //user_sort_init();   // user histos already defined, but defaul histos
-      init_default_histos(configs[1], sort);     // depend on odb in datafile
+      init_default_sort(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
       if(strlen(cfg->histo_dir) > 0 ){
@@ -216,26 +183,8 @@ static void online_loop(Config *cfg, Sort_status *sort)
       cfg->midas_runtime    = diagnostics.midas_last_timestamp+1;
       cfg->midas_runtime   -= cfg->midas_start_time;
       memcpy(cfg->midas_title, midas_runtitle, SYS_PATH_LENGTH);
-      fp = NULL;
-      if( strlen(cfg->histo_dir) > 0 ){
-         sprintf(tmp,"%s/run%05d.tar", cfg->histo_dir, sort->run_number);
-         if( (fp=fopen(tmp,"w")) != NULL ){
-            write_histofile(cfg, fp); fclose(fp);
-         } else {
-            printf("Can't open histo file: %s to write\n", tmp);
-         }
-      }
-      if( fp == NULL ){ // no histo_dir or not writable - use cwd
-         sprintf(tmp,"./run%05d.tar", sort->run_number);
-         if( (fp=fopen(tmp,"w")) != NULL ){
-            write_histofile(cfg, fp); fclose(fp);
-         } else {
-            printf("Can't open histo file: %s to write\n", tmp);
-         }
-      }
       copy_config(configs[0], configs[1]); // prepare for next run
       printf("File took %ld seconds\n", end-start);
-      show_coinc_stats();
    }
    unload_midas_module();
    return;
@@ -316,7 +265,7 @@ uint64_t process_event(Grif_event *ptr, int slot, FILE *out)
       prv_time = cur_time;
    }
    if( singlethread_save == 1 && sort_status.odb_done == 0 ){ calls = 0;
-      init_default_histos(configs[1], &sort_status); sort_status.odb_done = 1;
+      init_default_sort(configs[1], &sort_status); sort_status.odb_done = 1;
    }
    apply_gains(ptr);
    return insert_presort_win(ptr, slot, out);
@@ -427,7 +376,6 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
          if( win_count > coinc_events_cutoff ){ ++sortfull; } else {
             // now removed all events not in coinc with newly added fragment
             //   so can update coinc window counters with just-added frag
-            user_addto_window(sort_window_start, slot);
             break;
          }
       }
@@ -436,7 +384,7 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
       // NOTE event[slot] is out of window - use slot-1 as window-end
       if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
       if( alt->chan != -1 ){ ++sorted;
-         numSort += (uint64_t)default_sort(sort_window_start, win_end, SORT_ONE, out);
+         numSort += (uint64_t)fill_smol_entry(out, sort_window_start, win_end, SORT_ONE);
          //printf("Sorted %u events\n",numSort);
          //user_sort(window_start, win_end, SORT_ONE);
       } else { ++skipped; }
@@ -482,7 +430,6 @@ int build_event(Grif_event *ptr, int slot, FILE *out)
 int sort_built_event(int window_start, int win_end, FILE *out)
 {
    pre_sort(window_start, win_end); // only fold of first fragment is set
-   default_sort(window_start, win_end, SORT_ALL, out);
-   //user_sort(window_start, win_end, SORT_ALL);
+   fill_smol_entry(out, window_start, win_end, SORT_ALL);
    return(0);
 }

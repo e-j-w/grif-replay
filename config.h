@@ -23,16 +23,10 @@ int close_sortfiles(Sort_status *arg);
 int end_current_sortfile(int fd);
 void unload_midas_module();
 int pre_sort(int frag_idx, int end_idx);
-int user_addto_window(int win_strt, int new_frag);
-uint8_t default_sort(int win_idx, int frag_idx, int flag, FILE *out);
+uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const int flag);
 int sort_built_event(int window_start, int win_end, FILE *out);
-/////////////////////////////////////////////////////////////////////////
-/////////////////////       Histograms       ////////////////////////////
-/////////////////////////////////////////////////////////////////////////
 
 #define DEFAULT_CONFIG "last.json"
-
-typedef struct th1i_struct Histogram;
 
 typedef struct global_struct {
    char name[STRING_LEN]; int min; int max;
@@ -47,7 +41,6 @@ typedef struct cal_coeff_struct {
 typedef struct sortvar_struct {     // sortvars used by histos AND conditions
    int value;      int offset;    int dtype;     //  but "use_count" only used
    int use_count_x;  int valid;   int local;     //  to refer to histo_use
-   Histogram *histo_list_x[MAX_HISTOGRAMS];      // (inc/dec in add/rmv_histo)
    char name[STRING_LEN]; char title[STRING_LEN];
 } Sortvar;
 
@@ -72,38 +65,6 @@ typedef struct histo_folder_struct {
 typedef struct th1i_struct TH1I;
 typedef struct th2i_struct TH2I;
 
-// float has around 24bits integer precision
-struct th1i_struct {  long  file_data_offset;    int data_size;
-   int      type;  TH1I    *next;   char     path[HISTO_FOLDER_LENGTH];
-   int     xbins;  int     ybins;   char          title[TITLE_LENGTH];
-   int     *data;  int valid_bins;  char        handle[HANDLE_LENGTH];
-   int underflow;  int   overflow;
-   int   entries;  int  num_gates;  char  *gate_names[MAX_HISTO_GATES];
-   Sortvar *xvar;  Sortvar  *yvar;  int  *gate_passed[MAX_HISTO_GATES];
-   int xmin; int xmax; int ymin; int ymax; int suppress; int user;
-   int xrange; int yrange;  int done_flag;  int symm;
-   int   (*Reset)(TH1I *);
-   int   (*Fill)(TH1I *, int, int);
-   int   (*SetBinContent)(TH1I *, int, int);
-   int   (*GetBinContent)(TH1I *, int);
-   int   (*SetValidLen  )(TH1I *, int);
-};
-struct th2i_struct {  long  file_data_offset;  int data_size;
-   int      type;  TH1I    *next;   char     path[HISTO_FOLDER_LENGTH];
-   int     xbins;  int     ybins;   char          title[TITLE_LENGTH];
-   int     *data;  int valid_bins;  char        handle[HANDLE_LENGTH];
-   int underflow;  int   overflow;
-   int   entries;  int  num_gates;  char  *gate_names[MAX_HISTO_GATES];
-   Sortvar *xvar;  Sortvar  *yvar;  int  *gate_passed[MAX_HISTO_GATES];
-   int xmin; int xmax; int ymin; int ymax; int suppress;  int user;
-   int xrange; int yrange;  int done_flag;  int symm;
-   int   (*Reset)(TH2I *);
-   int   (*Fill)(TH2I *, int, int, int);
-   int   (*SetBinContent)(TH2I *, int, int, int);
-   int   (*GetBinContent)(TH2I *, int, int);
-   int   (*SetValidLen  )(TH2I *, int);
-};
-
 #define DISK_CONFIG 0
 #define MEM_CONFIG  1
 
@@ -125,27 +86,20 @@ typedef struct config_set_struct { int  type; // memory(live,sort) or disk
    int nconds;           Cond  *condlist[MAX_CONDS];       //   sorted list
    int ngates;           Gate  *gatelist[MAX_GATES];//(inactive at end)           47384
    int nusedvar;         Sortvar *usedvars[MAX_SORT_VARS];
-   int nuser;            Histogram *user_histos[MAX_HISTOGRAMS];
-   int nhistos;          Histogram *histo_list[MAX_HISTOGRAMS];
+   int nuser;            
    int nsortvar;         Sortvar varlist[MAX_SORT_VARS];                     // 33921336
    Cond cond_array[MAX_GATES];  Gate gate_array[MAX_GATES]; // unsorted
    Global global_array[MAX_GLOBALS];                                         // 34115896
-   Histogram histo_array[MAX_HISTOGRAMS];
    Cal_coeff calib_array[MAX_CALIB];  int odb_daqsize;
 } Config;
 
 extern Config *configs[MAX_CONFIGS]; // start unallocated
 
-extern int init_default_histos(Config *cfg, Sort_status *arg);
-extern int remove_histo(Config *cfg, char *name);
-extern int add_histo(Config *cfg, char *path, char *name, char *title, int xbins, char *xvarname, int xmin, int max, int ybins, char *yvarname, int ymin, int ymax);
-extern Histogram *find_histo(Config *cfg, char *name);
-extern int read_histo_data(Histogram *histo, FILE *fp);
+extern int init_default_sort(Config *cfg, Sort_status *arg);
 
 extern Config *add_config(char *name);
 extern int remove_config(Config *cfg);
 extern int next_condname(Config *cfg);
-extern int sum_histos(Config *cfg, int num, char url_args[][STRING_LEN], int fd);
 extern int set_calibration(Config *cfg, int num, char url_args[][STRING_LEN], int fd);
 extern int set_pileup_correction(Config *cfg, int num, char url_args[][STRING_LEN], int fd);
 
@@ -166,32 +120,6 @@ extern Sortvar *find_sortvar(Config *cfg, char *name);
 
 extern int add_global(Config *cfg, char *name, int value, int val2);
 extern int remove_global(Config *cfg, char *name);
-
-/////////////////////////////////////////////////////////////////////////
-/////////////////////          Gates         ////////////////////////////
-/////////////////////////////////////////////////////////////////////////
-
-#define GATEOP_LT    0
-#define GATEOP_LE    1
-#define GATEOP_GT    2
-#define GATEOP_GE    3
-#define GATEOP_EQ    4
-#define GATEOP_RA    5
-//#define GATEOP(OP) (         ((OP)==GATEOP_EQ) ? "=" :      \
-//   ((OP)==GATEOP_LT) ? "<" : ((OP)==GATEOP_LE) ? "<=" :       \
-//   ((OP)==GATEOP_GT) ? ">" : ((OP)==GATEOP_GE) ? ">=" : "UNK" )
-#define GATEOP(OP) (                                           \
-   ((OP)==GATEOP_RA) ? "RA" : ((OP)==GATEOP_EQ) ? "EQ" :       \
-   ((OP)==GATEOP_LT) ? "LT" : ((OP)==GATEOP_LE) ? "LE" :       \
-   ((OP)==GATEOP_GT) ? "GT" : ((OP)==GATEOP_GE) ? "GE" : "UNK" )
-
-extern int add_cond(Config *cfg, char *name, char *var, char *op, int value);
-extern int remove_cond(Config *cfg, char *name);
-extern int apply_gate(Config *cfg, char *histoname, char *gatename);
-extern int unapply_gate(Config *cfg, char *histoname, char *gatename);
-extern int add_gate(Config *cfg, char *name);
-extern int remove_gate(Config *cfg, char *name);
-extern int add_cond_to_gate(Config *cfg, char *gatename, char *condname);
 
 /////////////////////////////////////////////////////////////////////////
 /////////////////          Config Files         /////////////////////////

@@ -84,7 +84,7 @@ void grif_main(Sort_status *arg)
           usleep(usecs); continue;
       }
       if( (( (*evptr)>>28 )&0xf) != 0xE ){
-	if( (++wcnt % 256) == 0 ){
+	      if( (++wcnt % 256) == 0 ){
             printf("SEGFAULT:wcnt=%d\n", wcnt);
          }
          ++evptr;       // DO NOT consume input data here or event
@@ -171,24 +171,24 @@ int unpack_grif3_event(unsigned *evntbuf, int evlen, Grif_event *ptr, int proces
             ++grif_err[GRIF_ERR_HDR];
             //fprintf(stderr,"Event %d(chan%d) 0x8 not at start of data\n",
             //   grif_evcount, ptr->chan );
-	 }
-	 qtcount = 0;
+	      }
+	      qtcount = 0;
          ptr->dtype  = ((value & 0x000000F) >>  0);
 
          //if( ptr->dtype == 6 ){
-	 //   printf("DSC\n");
-	 //}
+         //   printf("DSC\n");
+         //}
          ptr->address= ((value & 0xFFFF0) >>  4);
-	 // ptr->address >= 0x8000 - currently this will be caen data events
-	 //   which have had their address altered to allow reordering
+         // ptr->address >= 0x8000 - currently this will be caen data events
+         //   which have had their address altered to allow reordering
          //   now the address should be changed back to what it was
          if( (unsigned)(ptr->address) >= 0x8000 ){
-	    extern int grifc_to_boardid[16];
-	    int board_id, grifc;
-	    grifc = (ptr->address >> 12 ) & 0xF;
-	    board_id = grifc_to_boardid[grifc];
-	    ptr->address = 0x8000 + (board_id * 0x100) + (ptr->address & 0xFF);
-	 }
+            extern int grifc_to_boardid[16];
+            int board_id, grifc;
+            grifc = (ptr->address >> 12 ) & 0xF;
+            board_id = grifc_to_boardid[grifc];
+            ptr->address = 0x8000 + (board_id * 0x100) + (ptr->address & 0xFF);
+         }
 
          // fprintf(stdout,"%d\n",ptr->address);
          ptr->chan = GetIDfromAddress(ptr->address);
@@ -203,14 +203,14 @@ int unpack_grif3_event(unsigned *evntbuf, int evlen, Grif_event *ptr, int proces
          wave_ptr  = &ptr->waveform_length;     /* should be zero here */
          // if network count not present, next 2 words are [mstpat/ppg mstid]
          // (in filtered data)
-	 if( ( *(evntbuf) >> 31 ) == 0 ){ val32 = *(evntbuf++); ++i;
-	    ptr->wf_present = (val32 & 0x8000) >> 15;
-	    ptr->pileup     = (val32 & 0x001F);
-	 }
-	 if( ( *(evntbuf) >> 31 ) == 0 ){
+         if( ( *(evntbuf) >> 31 ) == 0 ){ val32 = *(evntbuf++); ++i;
+            ptr->wf_present = (val32 & 0x8000) >> 15;
+            ptr->pileup     = (val32 & 0x001F);
+         }
+         if( ( *(evntbuf) >> 31 ) == 0 ){
             ptr->master_id   = *(evntbuf++); ++i;
          }
- 	 break;
+ 	      break;
       case 0x9:                      /* Channel Trigger Counter [AND MODE] */
          ptr->trig_req =  value & 0x0fffffff;
          break;
@@ -218,30 +218,30 @@ int unpack_grif3_event(unsigned *evntbuf, int evlen, Grif_event *ptr, int proces
          ptr->timestamp   = ( value & 0x0fffffff );
          break;
       case 0xb:                               /* Time Stamp Hi and deadtime */
-	 ptr->timestamp   |= ( (long)(value & 0x0003fff) << 28);
-	 ptr->deadtime     = ( (value & 0xfffc000) >> 14);
+         ptr->timestamp   |= ( (long)(value & 0x0003fff) << 28);
+         ptr->deadtime     = ( (value & 0xfffc000) >> 14);
          ptr->ts = ptr->timestamp;
-	 break;
+         break;
       case 0xc:                                             /* waveform data */
          if( wave_ptr == NULL ){
             fprintf(stderr,"griffin_decode: no memory for waveform\n");
          } else if( process_waveforms == 1 ){/* + 14->16bit sign extension */
-	    waveform[(*wave_ptr)  ]   = value & 0x3fff;
+            waveform[(*wave_ptr)  ]   = value & 0x3fff;
             waveform[(*wave_ptr)++] |= ((value>>13) & 1) ? 0xC000 : 0;
-	    waveform[(*wave_ptr)  ]   =(value & 0xfffc000) >> 14;
+            waveform[(*wave_ptr)  ]   =(value & 0xfffc000) >> 14;
             waveform[(*wave_ptr)++] |= ((value>>27) & 1) ? 0xC000 : 0;
-	 }
-	 break;
+         }
+         break;
       case 0xd:                                   /* network packet counter */
          ptr->net_id = val32;
          // next 2 words are [mstpat/ppg mstid] in filtered data
-	 //  [in unfiltered data, first word is "fake" master_id,
+	      //  [in unfiltered data, first word is "fake" master_id,
          //                 and following word is missing
          if( ( *(evntbuf) >> 31 ) == 0 ){ val32 = *(evntbuf++); ++i;
-	    ptr->wf_present = (val32 & 0x8000) >> 15;
-	    ptr->pileup     = (val32 & 0x001F);
-	 }
-	 if( ( *(evntbuf) >> 31 ) == 0 ){
+            ptr->wf_present = (val32 & 0x8000) >> 15;
+            ptr->pileup     = (val32 & 0x001F);
+         }
+         if( ( *(evntbuf) >> 31 ) == 0 ){
             ptr->master_id   = *(evntbuf++); ++i;
          }
 	 break;
@@ -250,8 +250,8 @@ int unpack_grif3_event(unsigned *evntbuf, int evlen, Grif_event *ptr, int proces
             ++grif_err[GRIF_ERR_TRLR];
             //fprintf(stderr,"Event %d(chan%d) 0xE before End of data\n",
             //   grif_evcount, ptr->chan );
-	 }
-	 ptr->trig_acc = (val32 & 0xfffc000) >> 14;
+         }
+         ptr->trig_acc = (val32 & 0xfffc000) >> 14;
          if( ptr->dtype < 12 && (val32 & 0x3fff) != (ptr->trig_req & 0x3fff)
                                                     && val32 != 0xefffffff ){
             ++grif_err[GRIF_ERR_TRIGMATCH];

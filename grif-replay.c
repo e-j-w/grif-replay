@@ -105,6 +105,7 @@ int sort_next_file(Config *cfg, Sort_status *sort)
 
       sprintf(tmp,"%s", cfg->out_file);
       if( (smolfp=fopen(tmp,"w")) != NULL ){
+         printf("Opened output file: %s\n",tmp);
          uint64_t header = 0U; //placeholder
          fwrite(&header,sizeof(uint64_t),1,smolfp);
          uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done

@@ -246,8 +246,8 @@ int pre_sort(int frag_idx, int end_idx)
   float energy,correction;
   float correction12, correction23;
 
-      // Protect yourself
-  if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
+  // Protect yourself
+  if( ptr->chan<0 || ptr->chan >= odb_daqsize){
      fprintf(stderr,"presort error: ignored event in chan:%d\n",ptr->chan );
      return(-1);
   }
@@ -264,10 +264,10 @@ int pre_sort(int frag_idx, int end_idx)
     if( ++i >=  MAX_COINC_EVENTS ){ i=0; } alt = &grif_event[i]; // WRAP
 
     // Protect yourself
-      if( alt->chan<0 || alt->chan >= odb_daqsize ){
-         fprintf(stderr,"presort error: ignored event in chan:%d\n",alt->chan );
-         return(-1);
-      }
+    if( alt->chan<0 || alt->chan >= odb_daqsize){
+        fprintf(stderr,"presort error: ignored event in chan:%d\n",alt->chan );
+        return(-1);
+    }
 
     // Determine fold
     if( alt->subsys == ptr->subsys ){ ++ptr->fold; }
@@ -342,6 +342,8 @@ int pre_sort(int frag_idx, int end_idx)
             // Apply the k1 dependant correction to the energy of the first hit
             pos  = crystal_table[ptr->chan];
             k1 = ptr->integ;
+            chan  = ptr->chan;
+            //printf("chan: %i, k1: %f\n",chan,k1);
             ptr->ecal=ptr->esum = ptr->ecal*( pileupk1[chan][0]+(k1*pileupk1[chan][1])+(k1*k1*pileupk1[chan][2])+(k1*k1*k1*pileupk1[chan][3])
             +(k1*k1*k1*k1*pileupk1[chan][4])+(k1*k1*k1*k1*k1*pileupk1[chan][5])+(k1*k1*k1*k1*k1*k1*pileupk1[chan][6]));
             alt->e4cal=ptr->ecal; // Remember the ecal of the first Hit in this second Hit
@@ -369,6 +371,7 @@ int pre_sort(int frag_idx, int end_idx)
           // Apply the k1 dependant correction to the energy of the first hit
           pos  = crystal_table[ptr->chan];
           k1 = ptr->integ;
+          chan  = ptr->chan;
           ptr->ecal=ptr->esum = ptr->ecal*( pileupk1[chan][0]+(k1*pileupk1[chan][1])+(k1*k1*pileupk1[chan][2])+(k1*k1*k1*pileupk1[chan][3])
           +(k1*k1*k1*k1*pileupk1[chan][4])+(k1*k1*k1*k1*k1*pileupk1[chan][5])+(k1*k1*k1*k1*k1*k1*pileupk1[chan][6]));
           alt->e4cal=ptr->ecal; // Remember the ecal of the first Hit in this second Hit
@@ -614,7 +617,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
   for(i=win_idx; ; i++){ ptr = &grif_event[i];
     
     if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
-      fprintf(stderr,"SmolSort: UNKNOWN_CHAN=%i type=%d\n",ptr->chan,ptr->dtype);
+      //fprintf(stderr,"SmolSort: UNKNOWN_CHAN=%i type=%d\n",ptr->chan,ptr->dtype);
       if( i==frag_idx ){ break; } continue;
     }
     if( i >= MAX_COINC_EVENTS ){ i=0; } // WRAP
@@ -795,6 +798,7 @@ int read_odb_items(int len, int *bank_data)
       ptr=str+1;
    }
    fprintf(stdout,"odb record: %d bytes\n", len);
+   fprintf(stdout,"odb daq size: %i\n", odb_daqsize);
 
    // arrays typically around 500 entries [one per "chan"] each entry with ...
    //   daq-address, name, type, gains etc.

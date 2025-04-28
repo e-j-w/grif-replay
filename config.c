@@ -1060,8 +1060,6 @@ int add_sortfile(char *path)
    }
    sort->num_subruns = i; sort->subrun = 0;
 
-   sort->cal_src = NULL;
-
    return(0);
 }
 
@@ -1089,11 +1087,7 @@ int open_next_sortfiles(Sort_status *sort)
    }
    fprintf(stdout,"sorting file: %s\n", tmp);
    sort->midas_bytes = 0;
-   if( strcmp(sort->cal_src, "config") == 0 ){
-      sort->cal_overwrite = 0; // cal src == "config"
-   } else {
-      sort->cal_overwrite = 1;
-   }
+   sort->cal_overwrite = 1;
    return(0);
 }
 

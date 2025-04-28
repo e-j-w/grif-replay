@@ -39,7 +39,7 @@ typedef struct sortstatus_struct {
    char  *data_dir; char  *data_name;
    long data_size; int run; int subrun;
    int run_digits; int subrun_digits;
-   int num_subruns;  char  *cal_src;
+   int num_subruns;
    char file_info[4][256];
    volatile int  end_of_data; volatile int odb_done;  int debug;
    volatile int  reorder_out_done;    int single_thread;

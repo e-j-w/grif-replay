@@ -610,11 +610,12 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
   int i;
 
   // initialize SMOL tree event
-  sorted_evt sortedEvt;
-  memset(&sortedEvt,0,sizeof(sorted_evt));   
-  uint8_t numHPGeHits = 0;
+  sorted_evt *sortedEvt = calloc(1,sizeof(sorted_evt));
+  sortedEvt->header.numHPGeHits = 0;
   
-  for(i=win_idx; ; i++){ ptr = &grif_event[i];
+  for(i=win_idx; ; i++){
+    
+    ptr = &grif_event[i];
     
     if( ptr->chan<0 || ptr->chan >= odb_daqsize ){
       //fprintf(stderr,"SmolSort: UNKNOWN_CHAN=%i type=%d\n",ptr->chan,ptr->dtype);
@@ -631,26 +632,26 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
       case SUBSYS_HPGE: // Ge
         // Only use GRGa
         if(output_table[ptr->chan] == 1){
-          if(numHPGeHits >= MAX_EVT_HIT){
+          if(sortedEvt->header.numHPGeHits >= MAX_EVT_HIT){
             break;
           }
-          if(sortedEvt.header.evtTimeNs == 0){
-            sortedEvt.header.evtTimeNs = (double)(ptr->ts); //why is time an integer? (why not...?)
+          if(sortedEvt->header.evtTimeNs == 0){
+            sortedEvt->header.evtTimeNs = (double)(ptr->ts); //why is time an integer? (why not...?)
           }
-          sortedEvt.hpgeHit[numHPGeHits].energy = offsets[ptr->chan]+((float)ptr->energy)*((float)(gains[ptr->chan]+((float)ptr->energy)*quads[ptr->chan]));
-          sortedEvt.hpgeHit[numHPGeHits].timeOffsetNs = (float)(ptr->ts - sortedEvt.header.evtTimeNs);
-          sortedEvt.hpgeHit[numHPGeHits].core = (uint8_t)(crystal_table[ptr->chan]);
-          if(sortedEvt.hpgeHit[numHPGeHits].core >= 64){
-            fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt.hpgeHit[numHPGeHits].core);
+          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].energy = offsets[ptr->chan]+((float)ptr->energy)*((float)(gains[ptr->chan]+((float)ptr->energy)*quads[ptr->chan]));
+          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].timeOffsetNs = (float)(ptr->ts - sortedEvt->header.evtTimeNs);
+          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core = (uint8_t)(crystal_table[ptr->chan]);
+          if(sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core >= 64){
+            fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core);
             break;
           }
-          numHPGeHits++;
+          sortedEvt->header.numHPGeHits++;
         }
         break; // outer-switch-case-GE
 
       case SUBSYS_BGO:
         //at least one suppressor fired
-        sortedEvt.header.metadata |= (uint8_t)(1U << 1);
+        sortedEvt->header.metadata |= (uint8_t)(1U << 1);
         break;
 
       default:
@@ -662,24 +663,28 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
   }
   lastWinIdx = i;
   
-  if((numHPGeHits > 0)&&(numHPGeHits <= MAX_EVT_HIT)){
+  if((sortedEvt->header.numHPGeHits > 0)&&(sortedEvt->header.numHPGeHits <= MAX_EVT_HIT)){
 
     //finalize sorted event data
-    sortedEvt.header.metadata |= (uint8_t)(1U << 7); //set data validation bit
-    sortedEvt.header.numHPGeHits = numHPGeHits;
+    sortedEvt->header.metadata |= (uint8_t)(1U << 7); //set data validation bit
 
     //write sorted event to SMOL tree
-    fwrite(&sortedEvt.header,sizeof(evt_header),1,out);
+    fwrite(&sortedEvt->header,sizeof(evt_header),1,out);
     //write hits
-    for(int j = 0; j<numHPGeHits;j++){
-      fwrite(&sortedEvt.hpgeHit[j].timeOffsetNs,sizeof(float),1,out);
-      fwrite(&sortedEvt.hpgeHit[j].energy,sizeof(float),1,out);
-      fwrite(&sortedEvt.hpgeHit[j].core,sizeof(uint8_t),1,out);
-      //fprintf(stdout,"Hit %u - core: %u, energy: %0.2f, time offset: %0.2f, win: %i, frag: %i\n",j,sortedEvt.hpgeHit[j].core,(double)sortedEvt.hpgeHit[j].energy,(double)sortedEvt.hpgeHit[j].timeOffsetNs,win_idx,frag_idx);
+    for(uint8_t j = 0; j<sortedEvt->header.numHPGeHits;j++){
+      fwrite(&sortedEvt->hpgeHit[j].timeOffsetNs,sizeof(float),1,out);
+      fwrite(&sortedEvt->hpgeHit[j].energy,sizeof(float),1,out);
+      fwrite(&sortedEvt->hpgeHit[j].core,sizeof(uint8_t),1,out);
+      //fprintf(stdout,"Hit %u - core: %u, energy: %0.2f, time offset: %0.2f, win: %i, frag: %i\n",j,sortedEvt->hpgeHit[j].core,(double)sortedEvt->hpgeHit[j].energy,(double)sortedEvt->hpgeHit[j].timeOffsetNs,win_idx,frag_idx);
     }
+    uint8_t numHPGeHits = sortedEvt->header.numHPGeHits;
+    free(sortedEvt);
+    return numHPGeHits;
   }
+
+  free(sortedEvt);
+  return 0;
   
-  return numHPGeHits;
 }
 
 //#######################################################################

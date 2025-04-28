@@ -20,8 +20,6 @@ int coinc_events_cutoff = 25;
 char midas_runtitle[SYS_PATH_LENGTH];
 Sort_metrics diagnostics;
 static Sort_status sort_status;
-volatile int shutdown_server = 0;
-static void online_loop(Config *cfg, Sort_status *sort);
 FILE *output_tree;
 int main(int argc, char *argv[])
 {
@@ -29,9 +27,9 @@ int main(int argc, char *argv[])
       fprintf(stdout,"  grif-replay midas_file output_SMOL_tree\n");
       fprintf(stdout,"    MIDAS files are expected to be named using the\n");
       fprintf(stdout,"    standard run and subrun numbering scheme (eg.\n");
-      fprintf(stdout,"    run29623_000.mid). Provide only the first subrun,\n");
-      fprintf(stdout,"    all available subruns for a given run number\n");
-      fprintf(stdout,"    will then be sorted.\n\n");
+      fprintf(stdout,"    run29623_000.mid). Provide the path of the first \n");
+      fprintf(stdout,"    subrun, and all available subruns for that run\n");
+      fprintf(stdout,"    number will then be sorted.\n\n");
       exit(0);
    }
    Sort_status *sort = &sort_status;
@@ -104,11 +102,11 @@ int sort_next_file(Config *cfg, Sort_status *sort)
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
       sprintf(tmp,"%s", cfg->out_file);
-      if( (smolfp=fopen(tmp,"w")) != NULL ){
+      if( (smolfp=fopen(tmp,"wb")) != NULL ){
          printf("Opened output file: %s\n",tmp);
-         uint64_t header = 0U; //placeholder
-         fwrite(&header,sizeof(uint64_t),1,smolfp);
-         uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
+         uint64_t numSortedEvts = 0U; //placeholder
+         fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
+         numSortedEvts += sort_main(sort,smolfp); // this exits when sort is done
          fseek(smolfp,0,SEEK_SET);
          fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
          printf("Wrote %lu separated events to output file.\n",numSortedEvts);
@@ -131,70 +129,6 @@ int sort_next_file(Config *cfg, Sort_status *sort)
    memcpy(cfg->midas_title, midas_runtitle, SYS_PATH_LENGTH);
    printf("File took %ld seconds\n", end-start);
    return(0);
-}
-
-static void online_loop(Config *cfg, Sort_status *sort)
-{
-   time_t end, start;
-   char tmp[64];
-   FILE *fp, *smolfp;
-   pthread_create(&midas_thread, NULL, (void* (*)(void*))midas_module_main, sort);
-   sort->odb_ready = 0; // only done on module load atm.
-   while(1){
-      while( !sort->run_in_progress ){ usleep(1); } // wait for run to start
-      start =time(NULL);
-      done_events = 0;
-      memset(&diagnostics, 0, sizeof(Sort_metrics) );
-      diagnostics.run_sort_start = start;
-      sort->shutdown_midas = sort->end_of_data = 0;
-      sort->reorder_in_done = sort->reorder_out_done = 0;
-      sort->grif_sort_done = sort->odb_done = 0;
-      reorder_save = sort->reorder;
-      singlethread_save = sort->single_thread;
-      sortthread_save = sort->sort_thread;
-      presort_window_start = sort_window_start = 0;
-
-      printf("creating reorder threads\n");
-      pthread_create(&ordthrd,NULL,(void* (*)(void*))reorder_main,sort);
-      pthread_create(&ordthr2,NULL,(void* (*)(void*))reorder_out, sort);
-
-      while( !sort->odb_ready ){     // wait for midas thread to read odb event
-         usleep(1);
-      }
-      //user_sort_init();   // user histos already defined, but defaul histos
-      init_default_sort(configs[1], sort);     // depend on odb in datafile
-      pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
-
-      sprintf(tmp,"%s", cfg->out_file);
-      if( (smolfp=fopen(tmp,"w")) != NULL ){
-         uint64_t header = 0U; //placeholder
-         fwrite(&header,sizeof(uint64_t),1,smolfp);
-         uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
-         fseek(smolfp,0,SEEK_SET);
-         fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
-         printf("Wrote %lu separated events to output file.\n",numSortedEvts);
-         fclose(smolfp);
-      } else {
-         printf("Can't open SMOL tree: %s to write\n", tmp);
-         return;
-      }
-
-      sort->shutdown_midas = 1;
-      // DO NOT SHTUDOWN MIDAS THREAD
-      pthread_join(ordthrd, NULL);
-      pthread_join(ordthr2, NULL);
-      pthread_join(grif_thread, NULL);
-
-      end=time(NULL);
-      cfg->midas_start_time = diagnostics.midas_run_start;
-      cfg->midas_runtime    = diagnostics.midas_last_timestamp+1;
-      cfg->midas_runtime   -= cfg->midas_start_time;
-      memcpy(cfg->midas_title, midas_runtitle, SYS_PATH_LENGTH);
-      copy_config(configs[0], configs[1]); // prepare for next run
-      printf("File took %ld seconds\n", end-start);
-   }
-   unload_midas_module();
-   return;
 }
 
 extern volatile long grifevent_wrpos;
@@ -412,7 +346,7 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
 //    (previously would loop over events already in window to see if they are now OUT)
 // NEW method - if first event is OUT ...
 //    build an event with all fragments before current fragment (which starts a new event)
-int build_event(Grif_event *ptr, int slot, FILE *out)
+/*int build_event(Grif_event *ptr, int slot, FILE *out)
 {
    int window_width = 200; // 2us - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
@@ -439,4 +373,4 @@ int sort_built_event(int window_start, int win_end, FILE *out)
    pre_sort(window_start, win_end); // only fold of first fragment is set
    fill_smol_entry(out, window_start, win_end, SORT_ALL);
    return(0);
-}
+}*/

@@ -70,7 +70,6 @@ typedef struct th2i_struct TH2I;
 // group config element stuff together, with add/delete/copy fns
 //   to allow quick switch between storing data or pointers (malloc/free)
 typedef struct config_set_struct { int  type; // memory(live,sort) or disk
-   FILE             *histo_fp;
    char name[SYS_PATH_LENGTH];     // "live", "sort", or pathname of tar file
    char data_dir[SYS_PATH_LENGTH];   // most recent datafile directory
    char config_dir[SYS_PATH_LENGTH]; // most recent configfile directory

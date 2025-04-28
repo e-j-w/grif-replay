@@ -1138,8 +1138,7 @@ char *subrun_filename(Sort_status *sort, int subrun)
 int close_sortfiles(Sort_status *sort)
 {  // data_fp usually closed in nxtsubrun
    if( sort->online_mode ){ return(0); } // no files in this mode
-   if( sort->data_fp != NULL ){ fclose(sort->data_fp); }
-   fclose(sort->histo_fp);
+   if( sort->data_fp != NULL ){ fclose(sort->data_fp); }\
    free_sortfile(sort);
    return(0);
 }

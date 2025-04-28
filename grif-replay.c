@@ -25,23 +25,33 @@ static void online_loop(Config *cfg, Sort_status *sort);
 FILE *output_tree;
 int main(int argc, char *argv[])
 {
+   if(argc != 3){
+      fprintf(stdout,"  grif-replay midas_file output_SMOL_tree\n");
+      fprintf(stdout,"    MIDAS files are expected to be named using the\n");
+      fprintf(stdout,"    standard run and subrun numbering scheme (eg.\n");
+      fprintf(stdout,"    run29623_000.mid). Provide only the first subrun,\n");
+      fprintf(stdout,"    all available subruns for a given run number\n");
+      fprintf(stdout,"    will then be sorted.\n\n");
+      exit(0);
+   }
    Sort_status *sort = &sort_status;
    int web_arg=1;  Config *cfg;
-
-   sort->single_thread = 0;
    init_config();
-   while( !shutdown_server ){ // monitor file queue and sort any added files
+   copy_config(configs[0], configs[1]); // copy config0 to cfg1 for sorting
+   cfg = configs[1];
+   sort->subrun = 0;
+   sort->single_thread = 0;
 
-      if( sort->current_filenum == sort->final_filenum ){ sleep(1); continue; }
-      copy_config(configs[0], configs[1]); // copy config0 to cfg1 for sorting
-      cfg = configs[1];
-      if( open_next_sortfiles(sort) == 0 ){
-         sort_next_file(cfg, sort);
-         fprintf(stdout,"DONE\n");
-         close_sortfiles(sort);
-      }
-      if( ++sort->current_filenum == FILE_QLEN ){ sort->current_filenum = 0; }
+   strncpy(cfg->out_file,argv[2],SYS_PATH_LENGTH); //setup output filename
+   add_sortfile(argv[1]);
+   fprintf(stdout,"MIDAS file: %s (%i subrun(s)), output file: %s\n",argv[1],sort->num_subruns,cfg->out_file);
+   
+   if( open_next_sortfiles(sort) == 0 ){
+      sort_next_file(cfg, sort);
+      fprintf(stdout,"DONE\n");
+      close_sortfiles(sort);
    }
+   
    exit(0);
 }
 
@@ -93,20 +103,18 @@ int sort_next_file(Config *cfg, Sort_status *sort)
       init_default_sort(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
-      if(strlen(cfg->histo_dir) > 0 ){
-         sprintf(tmp,"%s/run_out.smol", cfg->histo_dir, sort->run_number);
-         if( (smolfp=fopen(tmp,"w")) != NULL ){
-            uint64_t header = 0U; //placeholder
-            fwrite(&header,sizeof(uint64_t),1,smolfp);
-            uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
-            fseek(smolfp,0,SEEK_SET);
-            fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
-            printf("Wrote %lu separated events to output file.\n",numSortedEvts);
-            fclose(smolfp);
-         } else {
-            printf("Can't open SMOL tree: %s to write\n", tmp);
-            return(0);
-         }
+      sprintf(tmp,"%s", cfg->out_file);
+      if( (smolfp=fopen(tmp,"w")) != NULL ){
+         uint64_t header = 0U; //placeholder
+         fwrite(&header,sizeof(uint64_t),1,smolfp);
+         uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
+         fseek(smolfp,0,SEEK_SET);
+         fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
+         printf("Wrote %lu separated events to output file.\n",numSortedEvts);
+         fclose(smolfp);
+      } else {
+         printf("Can't open SMOL tree: %s to write\n", tmp);
+         return(0);
       }
 
       sort->shutdown_midas = 1;
@@ -156,20 +164,18 @@ static void online_loop(Config *cfg, Sort_status *sort)
       init_default_sort(configs[1], sort);     // depend on odb in datafile
       pthread_create(&grif_thread, NULL,(void* (*)(void*))grif_main, sort);
 
-      if(strlen(cfg->histo_dir) > 0 ){
-         sprintf(tmp,"%s/run%05d.smol", cfg->histo_dir, sort->run_number);
-         if( (smolfp=fopen(tmp,"w")) != NULL ){
-            uint64_t header = 0U; //placeholder
-            fwrite(&header,sizeof(uint64_t),1,smolfp);
-            uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
-            fseek(smolfp,0,SEEK_SET);
-            fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
-            printf("Wrote %lu separated events to output file.\n",numSortedEvts);
-            fclose(smolfp);
-         } else {
-            printf("Can't open SMOL tree: %s to write\n", tmp);
-            return;
-         }
+      sprintf(tmp,"%s", cfg->out_file);
+      if( (smolfp=fopen(tmp,"w")) != NULL ){
+         uint64_t header = 0U; //placeholder
+         fwrite(&header,sizeof(uint64_t),1,smolfp);
+         uint64_t numSortedEvts = sort_main(sort,smolfp); // this exits when sort is done
+         fseek(smolfp,0,SEEK_SET);
+         fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
+         printf("Wrote %lu separated events to output file.\n",numSortedEvts);
+         fclose(smolfp);
+      } else {
+         printf("Can't open SMOL tree: %s to write\n", tmp);
+         return;
       }
 
       sort->shutdown_midas = 1;

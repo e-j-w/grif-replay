@@ -14,11 +14,10 @@ int send_spectrum_list(char *name, int fd);
 int send_spectrum(int num, char urlarg[][STRING_LEN], char *, int fd);
 int send_sort_status(int fd);
 int send_datafile_list(char *path, int fd, int type);
-int send_histofile_list(char *path, int fd);
 int send_file_details(char *path, int fd);
-int add_sortfile(char *path, char *histodir, char *confdir, char *calsrc);
+int add_sortfile(char *path);
 int open_next_sortfiles(Sort_status *arg);
-int free_sortfile(Sortfile *sort);
+int free_sortfile(Sort_status *sort);
 int close_sortfiles(Sort_status *arg);
 int end_current_sortfile(int fd);
 void unload_midas_module();
@@ -74,10 +73,9 @@ typedef struct config_set_struct { int  type; // memory(live,sort) or disk
    FILE             *histo_fp;
    char name[SYS_PATH_LENGTH];     // "live", "sort", or pathname of tar file
    char data_dir[SYS_PATH_LENGTH];   // most recent datafile directory
-   char histo_dir[SYS_PATH_LENGTH];  // most recent histofile directory
    char config_dir[SYS_PATH_LENGTH]; // most recent configfile directory
    char midas_title[SYS_PATH_LENGTH];// title of midas run(histo_config)
-   char current_path[HISTO_FOLDER_LENGTH]; // current histogram path
+   char out_file[SYS_PATH_LENGTH]; // output file path
    int  midas_start_time;  int midas_runtime;  int mtime;  int lock;
    int folders_valid;    Folder first_folder;
    int current_depth;    Folder *treepath[HISTO_FOLDER_LENGTH]; // length 2296

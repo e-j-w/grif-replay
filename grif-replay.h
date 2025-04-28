@@ -34,22 +34,18 @@
 extern int debug;
 
 #define FILE_QLEN 256
-typedef struct sortfile_struct {
+
+typedef struct sortstatus_struct {
    char  *data_dir; char  *data_name;
-   char *histo_dir; char *histo_name;
-   char  *conf_dir; char  *conf_name;
    long data_size; int run; int subrun;
    int run_digits; int subrun_digits;
    int num_subruns;  char  *cal_src;
    char file_info[4][256];
-} Sortfile;
-
-typedef struct sortstatus_struct {
    volatile int  end_of_data; volatile int odb_done;  int debug;
    volatile int  reorder_out_done;    int single_thread;
    volatile int  reorder_in_done;     int reorder;
-   volatile int  current_filenum;     int odb_ready;
-   volatile int  final_filenum;       int sort_thread;
+   int odb_ready;
+   int sort_thread;
    volatile long midas_bytes;         int cal_overwrite;
    volatile int  midas_timestamp;     FILE *data_fp;
    volatile int  shutdown_midas;      FILE *histo_fp;

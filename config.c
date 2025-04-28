@@ -99,329 +99,6 @@ wget 'http://panther:9093/?cmd=callspechandler&spectum0=Hitpattern_Energy&spectr
 
 extern int coinc_events_cutoff;
 
-int handle_command(int fd, int narg, char url_args[][STRING_LEN])
-{
-   char *ptr = url_args[0]; // url_args already processed - dont need strncmp
-   int i, j, xbins, xmin, xmax, ybins, ymin, ymax, value, val2;
-   char *histodir, *configdir, *calsrc, *host, *expt, tmp[128];
-   extern volatile int shutdown_server;
-   Sort_status *sort_stat;
-   static FILE *web_fp;
-   FILE *tmp_fp;
-   Config *cfg;
-
-   if( strcmp(ptr, "getDatafileList") == 0 ){/* -- list datafiles -- */
-      if( strcmp(url_args[2], "dir") == 0 ){
-         send_datafile_list(url_args[3], fd, 0);
-      } else {
-         sprintf(tmp,"bad argument:%s in getdatafileList\n",url_args[2]);
-         fprintf(stderr,"bad arg:%s in getdatafileList\n", url_args[2]);
-      }
-   } else
-   if( strcmp(ptr, "getDatafileDetails") == 0 ){/* -- datafile titles -- */
-      if( strcmp(url_args[2], "dir") == 0 ){
-         send_datafile_list(url_args[3], fd, 1);
-      } else {
-         sprintf(tmp,"bad argument:%s in getdatafileList\n",url_args[2]);
-         fprintf(stderr,"bad arg:%s in getdatafileList\n", url_args[2]);
-      }
-   } else
-   if( strcmp(ptr, "getSortStatus") == 0 ){ /* -----------------------*/
-      send_sort_status(fd);
-   } else
-   if( strcmp(ptr, "terminateServer") == 0 ){ /* -----------------------*/
-      
-      shutdown_server = 1; return(0);
-   } else
-   if( strcmp(ptr, "setSortStatus") == 0 ){ /* -----------------------*/
-      if( strcmp(url_args[2], "status") != 0 ){
-         sprintf(tmp,"bad argument:%s in setSortStatus\n",url_args[2]);
-         fprintf(stderr,"bad arg:%s in setSortStatus\n", url_args[2]);
-      }
-      if( sscanf(url_args[3],"%d", &value) < 1 ){
-         sprintf(tmp,"setSortStatus:cant Read value: %s\n",url_args[3]);
-         fprintf(stderr,"setSortStatus:cantRead val:%s\n",url_args[3]);
-         return(-1);
-      }
-      
-      sort_stat = get_sort_status();
-      sort_stat->reorder       =  value     & 3;
-      sort_stat->single_thread = (value>>2) & 1;
-      sort_stat->sort_thread   = (value>>3) & 1;
-      return(0);
-   } else
-   if( strcmp(ptr, "setCoincLimit") == 0 ){ /* -----------------------*/
-      if( strcmp(url_args[2], "limit") != 0 ){
-         sprintf(tmp,"bad argument:%s in setCoincLimit\n",url_args[2]);
-         fprintf(stderr,"bad arg:%s in setCoincLimit\n", url_args[2]);
-      }
-      if( sscanf(url_args[3],"%d", &value) < 1 ){
-         sprintf(tmp,"setCoincLimit:cant Read value: %s\n",url_args[3]);
-         fprintf(stderr,"setCoincLimit:cantRead val:%s\n",url_args[3]);
-         return(-1);
-      }
-      
-      coinc_events_cutoff = value;
-      return(0);
-   } else
-   if( strcmp(ptr, "endCurrentFile") == 0 ){ /* -----------------------*/
-      
-      end_current_sortfile(fd);
-   } else
-   if( strcmp(ptr, "addDatafile") == 0 ){ /* ---- sort file ---------*/
-      histodir = configdir = calsrc = host = expt = NULL;
-      if( strcmp(url_args[2], "filename") != 0 ){
-         sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[2]);
-         
-         fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[2]);
-      }
-      if( strcmp(url_args[3],"ONLINE") == 0 ){
-         if( narg > 4 ){
-            if( strcmp(url_args[4], "host") == 0 ){
-               host = url_args[5];
-            } else if( strcmp(url_args[4], "expt") == 0 ){
-               expt = url_args[5];
-            } else if( strcmp(url_args[4], "histodir") == 0 ){
-               histodir = url_args[5];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[4]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[4]);
-            }
-         }
-         if( narg > 6 ){
-            if( strcmp(url_args[6], "host") == 0 ){
-               host = url_args[7];
-            } else if( strcmp(url_args[6], "expt") == 0 ){
-               expt = url_args[7];
-            } else if( strcmp(url_args[6], "histodir") == 0 ){
-               histodir = url_args[7];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[6]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[6]);
-            }
-         }
-         if( narg > 8 ){
-            if( strcmp(url_args[8], "host") == 0 ){
-               host = url_args[9];
-            } else if( strcmp(url_args[8], "expt") == 0 ){
-               expt = url_args[9];
-            } else if( strcmp(url_args[8], "histodir") == 0 ){
-               histodir = url_args[9];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[8]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[8]);
-            }
-         }
-          // This header indicates success to the client
-         add_sortfile(url_args[3], histodir, host, expt);
-      } else {
-         if( narg > 4 ){
-            if( strcmp(url_args[4], "histodir") == 0 ){
-               histodir = url_args[5];
-            } else if( strcmp(url_args[4], "configdir") == 0 ){
-               configdir = url_args[5];
-            } else if( strcmp(url_args[4], "calibrationSource") == 0 ){
-               calsrc = url_args[5];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[4]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[4]);
-            }
-         }
-         if( narg > 6 ){
-            if( strcmp(url_args[6], "histodir") == 0 ){
-               histodir = url_args[7];
-            } else if( strcmp(url_args[6], "configdir") == 0 ){
-               configdir = url_args[7];
-            } else if( strcmp(url_args[6], "calibrationSource") == 0 ){
-               calsrc = url_args[7];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[6]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[6]);
-            }
-         }
-         if( narg > 8 ){
-            if( strcmp(url_args[8], "histodir") == 0 ){
-               histodir = url_args[9];
-            } else if( strcmp(url_args[8], "configdir") == 0 ){
-               configdir = url_args[9];
-            } else if( strcmp(url_args[8], "calibrationSource") == 0 ){
-               calsrc = url_args[9];
-            } else {
-               sprintf(tmp,"bad argument:%s in addDataFile\n",url_args[8]);
-               fprintf(stderr,"bad arg:%s in addDataFile\n", url_args[8]);
-            }
-         }
-          // This header indicates success to the client
-         add_sortfile(url_args[3], histodir, configdir, calsrc);
-      }
-   } else
-   if( strcmp(ptr, "getDatainfo") == 0 ){ /* ---- file info ---------*/
-      if( strcmp(url_args[2], "filename") != 0 ){
-         sprintf(tmp,"bad argument:%s in getDatainfo\n",url_args[2]);
-         fprintf(stderr,"bad arg:%s in getDatainfo\n", url_args[2]);
-      }
-      send_file_details(url_args[3], fd);
-   } else
-   if( strcmp(ptr, "addGlobal") == 0 ){ /* ---------------------- */
-      if( narg != 8 ){
-         sprintf(tmp,"wrong number of arguments[%d] in addGlobal\n",narg);
-         fprintf(stderr,"wrong #arg[%d] in addGlobal\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"globalname") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in addGlobal\n",url_args[2]);
-         fprintf(stderr,"bad arg2[%s] in addGlobal\n",url_args[2]); return(-1);
-      }
-      if( strcmp(url_args[4],"globalmin") != 0 ){
-         sprintf(tmp,"Bad argument3[%s] in addGlobal\n",url_args[4]);
-         fprintf(stderr,"bad arg3[%s] in addGlobal\n",url_args[4]); return(-1);
-      }
-      if( sscanf(url_args[5],"%d", &value) < 1 ){
-         sprintf(tmp,"addGlobal: cant Read value: %s\n",url_args[5]);
-         fprintf(stderr,"addGlobal:cantRead val:%s\n",url_args[5]);return(-1);
-      }
-      if( strcmp(url_args[6],"globalmax") != 0 ){
-         sprintf(tmp,"Bad argument4[%s] in addGlobal\n",url_args[6]);
-         fprintf(stderr,"bad arg4[%s] in addGlobal\n",url_args[6]); return(-1);
-      }
-      if( sscanf(url_args[7],"%d", &val2) < 1 ){
-         sprintf(tmp,"addGlobal: cant Read value: %s\n",url_args[7]);
-         fprintf(stderr,"addGlobal:cantRead val:%s\n",url_args[7]);return(-1);
-      }
-      
-      add_global(configs[0], url_args[3], value, val2);
-   } else
-   if( strcmp(ptr, "removeGlobal") == 0 ){ /* -------------------- */
-      if( narg != 4 ){
-         sprintf(tmp,"wrong number of arguments[%d] in removeGlobal\n",narg);
-         fprintf(stderr,"wrong #arg[%d] in removeGlobal\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"globalname") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in removeGlobal\n",url_args[2]);
-         fprintf(stderr,"bad arg2[%s] in removeGlobal\n",url_args[2]);return(-1);
-      }
-      
-      remove_global(configs[0], url_args[3]);
-   } else
-   if( strcmp(ptr, "addCond") == 0 ){ /* ---------------------- */
-      if( narg != 10 ){
-         sprintf(tmp,"wrong number of arguments[%d] in addCond\n",narg);
-         fprintf(stderr,"wrong #arg[%d] in addCond\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"condname") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in addCond\n",url_args[2]);
-         fprintf(stderr,"bad arg2[%s] in addCond\n", url_args[2]); return(-1);
-      }
-      if( strcmp(url_args[4],"varname0") != 0 ){
-         sprintf(tmp,"Bad argument3[%s] in addCond\n",url_args[4]);
-         fprintf(stderr,"bad arg3[%s] in addCond\n", url_args[4]); return(-1);
-      }
-      if( strcmp(url_args[6],"op0") != 0 ){
-         sprintf(tmp,"Bad argument4[%s] in addCond\n",url_args[6]);
-         fprintf(stderr,"bad arg4[%s] in addCond\n", url_args[6]); return(-1);
-      }
-      if( strcmp(url_args[8],"value0") != 0 ){
-         sprintf(tmp,"Bad argument5[%s] in addCond\n",url_args[8]);
-         fprintf(stderr,"bad arg5[%s] in addCond\n", url_args[8]); return(-1);
-      }
-      if( sscanf(url_args[9],"%d", &value) < 1 ){
-         sprintf(tmp,"addCond: cant Read value: %s\n",url_args[9]);
-         fprintf(stderr,"addCond:cantRead value:%s\n",url_args[9]);return(-1);
-      }
-      
-   } else
-   if( strcmp(ptr, "removeCond") == 0 ){ /* -------------------- */
-      if( narg != 4 ){
-         sprintf(tmp,"wrong number of arguments[%d] in removeCond\n",narg);
-         fprintf(stderr,"wrong #arg[%d] in removeCond\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"condname") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in removeCond\n",url_args[2]);
-         fprintf(stderr,"bad arg2[%s] in removeCond\n",url_args[2]);return(-1);
-      }
-   } else
-   if( strcmp(ptr, "setCalibration") == 0 ){ /* -------------------- */
-      set_calibration(configs[0], narg, url_args, fd);
-   } else
-   if( strcmp(ptr, "setPileupCorrection") == 0 ){ /* -------------------- */
-      set_pileup_correction(configs[0], narg, url_args, fd);
-   } else
-   if( strcmp(ptr, "setDataDirectory") == 0 ){ /* -------------------- */
-      
-      set_directory(configs[0], "Data", url_args[3]);
-   } else
-   if( strcmp(ptr, "setHistoDirectory") == 0 ){ /* -------------------- */
-      
-      set_directory(configs[0], "Histo", url_args[3]);
-   } else
-   if( strcmp(ptr, "setConfigDirectory") == 0 ){ /* -------------------- */
-      
-      set_directory(configs[0], "Config", url_args[3]);
-   } else
-   if( strcmp(ptr, "saveConfig") == 0 ){ /* -------------------- */
-      if( narg != 4 ){
-         sprintf(tmp,"wrong number of arguments[%d] in saveConfig\n",narg);
-         
-         fprintf(stderr,"wrong #arg[%d] in saveConfig\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"filename") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in saveConfig\n",url_args[2]);
-         
-         fprintf(stderr,"bad arg2[%s] in saveConfig\n",url_args[2]);return(-1);
-      }
-      
-      save_config(configs[0], url_args[3], 1); // 1 => overwrite
-   } else
-   if( strcmp(ptr, "loadConfig") == 0 ){ /* -------------------- */
-      if( narg != 4 ){
-         sprintf(tmp,"wrong number of arguments[%d] in loadConfig\n",narg);
-         
-         fprintf(stderr,"wrong #arg[%d] in loadConfig\n", narg); return(-1);
-      }
-      if( strcmp(url_args[2],"filename") != 0 ){
-         sprintf(tmp,"Bad argument2[%s] in loadConfig\n",url_args[2]);
-         
-         fprintf(stderr,"bad arg2[%s] in loadConfig\n",url_args[2]);return(-1);
-      }
-      
-      load_config(configs[0], url_args[3], NULL);
-   } else
-   if( strcmp(ptr, "viewConfig") == 0 ){ /* -------------------- */
-      if( web_fp == NULL ){
-         if( (web_fp=fdopen(fd,"r+")) == NULL ){
-            fprintf(stderr,"viewConfig can't fdopen web fd\n"); return(-1);
-         }
-      }
-      if( strcmp(url_args[2],"filename") == 0 ){
-         sprintf(tmp,"/tmp/tmp.json");
-         if( (tmp_fp = fopen(tmp,"w+")) == NULL ){ // create if needed, truncate to zero
-            fprintf(stderr,"can't open tmp file:%s to write\n", tmp);
-           //return(-1);
-         }
-         
-         write_config(cfg, tmp_fp); fseek(tmp_fp, 0, SEEK_SET);
-         fclose(tmp_fp);
-         remove_config(cfg);
-      } else {
-         //write_config(configs[0], web_fp); fflush(web_fp); // empty if online??
-         printf("ViewCurrentConfig\n");
-         // hack workaround for now ...
-         sprintf(tmp,"/tmp/tmp.json");
-         if( (tmp_fp = fopen(tmp,"w+")) == NULL ){ // create if needed, truncate to zero
-            fprintf(stderr,"can't open tmp file:%s to write\n", tmp);
-           //return(-1);
-         }
-         
-         write_config(configs[0], tmp_fp); fseek(tmp_fp, 0, SEEK_SET);
-         fclose(tmp_fp);
-      }
-   } else {
-         sprintf(tmp,"Unknown Command: %s\n",ptr);
-         
-      fprintf(stderr,"Unknown Command:%s\n", ptr);
-   }
-   return(0);
-}
-
 ///////////////////////////////////////////////////////////////////////////
 /////////////////            Config  I/O            ///////////////////////
 ///////////////////////////////////////////////////////////////////////////
@@ -469,8 +146,6 @@ int write_config(Config *cfg, FILE *fp)
    {
       fprintf(fp,"%9s{\"name\" : \"Data\", ", "");
       fprintf(fp,"\"Path\" : \"%s\"},\n", cfg->data_dir);
-      fprintf(fp,"%9s{\"name\" : \"Histo\", ", "");
-      fprintf(fp,"\"Path\" : \"%s\"},\n", cfg->histo_dir);
       fprintf(fp,"%9s{\"name\" : \"Config\", ", "");
       fprintf(fp,"\"Path\" : \"%s\"}\n", cfg->config_dir); // NO COMMA
    }
@@ -591,7 +266,10 @@ int load_config(Config *cfg, char *filename, char *buffer)
       return(-1);
    } ptr += 17;
    while( 1 ){ // Calibrations
-      if( strncmp(ptr,"]},", 3) == 0 ){ ptr+=3; fprintf(stdout,"Calibrations section empty so breaking here.\n"); break; }// empty section
+      if( strncmp(ptr,"]},", 3) == 0 ){ 
+         ptr+=3; 
+         //fprintf(stdout,"Calibrations section empty so breaking here.\n"); 
+         break; }// empty section
       if( strncmp(ptr,"{\"name\":\"", 9) != 0 ){
          fprintf(stderr,"load_config: errS byte %ld\n", ptr-config_data);
          return(-1);
@@ -1188,10 +866,8 @@ int set_directory(Config *cfg, char *name, char *path)
       fprintf(stderr,"set_directory: path too long[%s]\n", path);
       return(-1);
    }
-   if(        strncmp(name, "Data",   4) == 0 ){
+   if( strncmp(name, "Data",   4) == 0 ){
       memcpy(cfg->data_dir, path, len+1);
-   } else if( strncmp(name, "Histo",  5) == 0 ){
-      memcpy(cfg->histo_dir, path, len+1);
    } else if( strncmp(name, "Config", 6) == 0 ){
       memcpy(cfg->config_dir, path, len+1);
    } else {
@@ -1271,43 +947,8 @@ void unload_midas_module()
    dlclose(midas_module_handle); midas_module_handle = NULL;
 }
 
-static Sortfile filelist[FILE_QLEN];
-static struct stat statbuf;
-int send_sort_status(int fd)
-{
-   static time_t conftime;
-   int i, mtime, subrun;
-   Sort_status *arg;
-   char tmpstr[256];
-   Sortfile *tmp;
-   long done;
-
-   // Send the response header
-   
-
-   arg = get_sort_status();
-   if( conftime == 0 ){ conftime = time(NULL); }
-   if( arg->online_mode ){
-      sprintf(tmpstr,"ONLINE %s %d", arg->run_in_progress ? "Running" : "Stopped", configs[0]->mtime );
-      return(0);
-   }
-   if( arg->final_filenum == arg->current_filenum ){
-      sprintf(tmpstr,"IDLE %d", configs[0]->mtime);
-      return(0);
-   }
-   i = arg->current_filenum;
-   while(i !=  arg->final_filenum){
-      tmp = &filelist[i];
-      done  = (i == arg->current_filenum) ? arg->midas_bytes  : 0;
-      mtime = (i == arg->current_filenum) ? configs[0]->mtime : 0;
-      sprintf(tmpstr,"%s %s %d %d %ld %ld %d,\n", tmp->data_dir, tmp->data_name, tmp->run, tmp->subrun, tmp->data_size, done, mtime );
-      if( ++i >= FILE_QLEN ){ i = 0; }
-   }
-   return(0);
-}
-
 #define READ_LIMIT (5*1024*1024) // don't read more than this looking for odb
-int read_datafile_info(Sortfile *sort, char *path)
+int read_datafile_info(Sort_status *sort, char *path)
 {
    int i, expt=0, ppg=0, flt=0, done=0;
    char tmp[256], *ptr;
@@ -1356,8 +997,8 @@ int read_datafile_info(Sortfile *sort, char *path)
 int send_file_details(char *path, int fd)
 {
    char tmp2[256];
-   Sortfile *tmp;
-   if( (tmp = calloc(sizeof(Sortfile), 1)) == NULL){
+   Sort_status *tmp;
+   if( (tmp = calloc(sizeof(Sort_status), 1)) == NULL){
       
       fprintf(stderr,"send_file_details: failed alloc\n");
    }
@@ -1369,37 +1010,27 @@ int send_file_details(char *path, int fd)
    return(0);
 }
 
+static struct stat statbuf;
+
 // split path into name,dir  then get histo and config names
 // also do stat to get size
-int run_number(Sort_status *arg, Sortfile *sort, char *name);
-char *subrun_filename(Sortfile *sort, int subrun);
-int add_sortfile(char *path, char *histodir, char *confdir, char *calsrc)
+int run_number(Sort_status *arg, char *name);
+char *subrun_filename(Sort_status *sort, int subrun);
+int add_sortfile(char *path)
 {
    int i, plen, dlen, ext_len, hlen, clen;
    char ptr, tmp[256], *fname;
-   Sort_status *arg, tmp_stat;
+   Sort_status *sort;
    Config *cfg = configs[0];
-   Sortfile *sort;
 
-   arg = get_sort_status();
-   if( strcmp(path,"ONLINE" ) == 0 ){
-      if( load_midas_module(confdir, calsrc) ){ return(-1); }
-      arg->online_mode = 1;
-      if( ++arg->final_filenum == FILE_QLEN ){ arg->final_filenum = 0; }
-      return(0);
-   }
-   memset(&tmp_stat, 0, sizeof(Sort_status) );
-   sort = &filelist[arg->final_filenum];
-   if( arg->final_filenum + 1 == arg->current_filenum ){
-      fprintf(stderr,"FILE QUEUE FULL"); return(-1);
-   }
+   sort = get_sort_status();
    plen=strlen(path);
    ext_len = ( strncmp(path+plen-4, ".mid", 4) == 0 ) ? 4 : 0;
    for(i=plen; i>=0; i--){ if( path[i] == '/' ){ ++i; break; } }
    if( (dlen = i) == -1 ){ dlen = 0; } // no directory separator in path
    if( (sort->data_dir = malloc(dlen + 2)) == NULL ){
       fprintf(stderr,"can't alloc string for data_dir");
-      free_sortfile(&filelist[arg->current_filenum]); return(-1);
+      free_sortfile(sort); return(-1);
    }
    if( dlen == 0 ){ sprintf(sort->data_dir, ".");
    } else {
@@ -1409,77 +1040,28 @@ int add_sortfile(char *path, char *histodir, char *confdir, char *calsrc)
    }
    if( (sort->data_name = malloc(plen-dlen+1)) == NULL ){
       fprintf(stderr,"can't alloc string for :%s", path);
-      free_sortfile(&filelist[arg->current_filenum]); return(-1);
+      free_sortfile(sort); return(-1);
    }
    memcpy((char *)sort->data_name, path+dlen, plen-dlen);
    *(sort->data_name+plen-dlen) = 0;
-   if( run_number(&tmp_stat, sort, sort->data_name) ){ return(-1); }
+   if( run_number(sort, sort->data_name) ){ return(-1); }
    memset(&statbuf, 0, sizeof(struct stat)); sort->data_size = 0;
-   if( sort->subrun != -1 ){ // just single subrun
-      fname = subrun_filename(sort, sort->subrun);
-      if( stat(fname, &statbuf) != 0 ){
-         fprintf(stderr,"can't stat single subrun: %s\n", path);
-      }
-      sort->data_size = (long)statbuf.st_size;
-   } else {                  // all subruns
-      for(i=0; ; i++){
-         fname = subrun_filename(sort, i);
-          if( stat(fname, &statbuf) != 0 ){
-             fprintf(stderr,"can't stat multi-subrun: %s\n", path); break;
-          }
-          sort->data_size += (long)statbuf.st_size;
-      }
-      sort->num_subruns = i; sort->subrun = 0;
-   }
-   if( (sort->histo_name = malloc(plen-dlen-ext_len+5)) == NULL ){
-      fprintf(stderr,"can't alloc string for histoname");
-      free_sortfile(&filelist[arg->current_filenum]); return(-1);
-   }
-   if( (sort->conf_name = malloc(plen-dlen-ext_len+5+1)) == NULL ){ // .json = 5bytes
-      fprintf(stderr,"can't alloc string for configname");
-      free_sortfile(&filelist[arg->current_filenum]); return(-1);
-   }
-   memcpy((char *)sort->histo_name, path+dlen, plen-dlen-ext_len);
-   sprintf(sort->histo_name+plen-dlen-ext_len,".tar");
-   memcpy((char *)sort->conf_name, path+dlen, plen-dlen-ext_len);
-   sprintf(sort->conf_name+plen-dlen-ext_len,".json");
 
-   if( histodir == NULL ){
-      sort->histo_dir = NULL;
-   } else {
-      plen=strlen(histodir);
-      if( (sort->histo_dir = malloc(plen+1)) == NULL ){
-         fprintf(stderr,"can't alloc string for histodir");
-         free_sortfile(&filelist[arg->current_filenum]); return(-1);
-      }
-      memcpy((char *)sort->histo_dir, histodir, plen);
-      *(sort->histo_dir+plen) = 0;
-       set_directory(cfg, "Histo", histodir);
+   //get number of subruns
+   sort->subrun = -1;
+   for(int i=0; ; i++){
+      fname = subrun_filename(sort, i);
+         if( stat(fname, &statbuf) != 0 ){
+            fprintf(stderr,"can't stat multi-subrun: %s\n", path);
+            fprintf(stderr,"fname: %s\n", fname);
+            break;
+         }
+         sort->data_size += (long)statbuf.st_size;
    }
-   if( confdir == NULL ){
-      sort->conf_dir = NULL;
-   } else {
-      plen=strlen(confdir);
-      if( (sort->conf_dir = malloc(plen+1)) == NULL ){
-         fprintf(stderr,"can't alloc string for configdir");
-         free_sortfile(&filelist[arg->current_filenum]); return(-1);
-      }
-      memcpy((char *)sort->conf_dir, confdir, plen);
-      *(sort->conf_dir+plen) = 0;
-      set_directory(cfg, "Config", confdir);
-   }
-   if( calsrc == NULL ){
-      sort->cal_src = NULL;
-   } else {
-      plen=strlen(calsrc);
-      if( (sort->cal_src = malloc(plen+1)) == NULL ){
-         fprintf(stderr,"can't alloc string for cal_src");
-         free_sortfile(&filelist[arg->current_filenum]); return(-1);
-      }
-      memcpy((char *)sort->cal_src, calsrc, plen);
-      *(sort->cal_src+plen) = 0;
-   }
-   if( ++arg->final_filenum == FILE_QLEN ){ arg->final_filenum = 0; } //wrap
+   sort->num_subruns = i; sort->subrun = 0;
+
+   sort->cal_src = NULL;
+
    return(0);
 }
 
@@ -1494,24 +1076,23 @@ int add_sortfile(char *path, char *histodir, char *confdir, char *calsrc)
 //     write histos
 // close_sortfilelist();
 //////////////////////////////////////////////////////////
-int open_next_sortfiles(Sort_status *arg)
+int open_next_sortfiles(Sort_status *sort)
 {
-   Sortfile *sort = &filelist[arg->current_filenum];
    char ptr, tmp[256];
    if( sort->num_subruns == 0 ){
-      sprintf(tmp, "%s/%s", sort->data_dir, sort->data_name);
+      sprintf(tmp, "%s", sort->data_name);
    } else {
       sprintf(tmp, "%s", subrun_filename(sort, 0) );
    }
-   if( (arg->data_fp=fopen(tmp,"r")) == NULL ){
+   if( (sort->data_fp=fopen(tmp,"r")) == NULL ){
       fprintf(stderr,"can't open %s to read\n", tmp);  return(-1);
    }
-   fprintf(stdout,"sorting file %d %s\n", arg->current_filenum, tmp);
-   arg->midas_bytes = 0;
+   fprintf(stdout,"sorting file: %s\n", tmp);
+   sort->midas_bytes = 0;
    if( strcmp(sort->cal_src, "config") == 0 ){
-      arg->cal_overwrite = 0; // cal src == "config"
+      sort->cal_overwrite = 0; // cal src == "config"
    } else {
-      arg->cal_overwrite = 1;
+      sort->cal_overwrite = 1;
    }
    return(0);
 }
@@ -1519,34 +1100,35 @@ int open_next_sortfiles(Sort_status *arg)
 // Only first subrun contains odb event
 // *could* just sort single subrun if subrun of specified data file is nonzero
 //         otherwise sort all subruns
-int open_next_subrun(Sort_status *arg)
+int open_next_subrun(Sort_status *sort)
 {
-   Sortfile *sort = &filelist[arg->current_filenum];
    char *filename;
-   fclose(arg->data_fp); arg->data_fp = NULL;
+   fclose(sort->data_fp); sort->data_fp = NULL;
 
    if( sort->subrun >= sort->num_subruns-1 ){ // last or no subruns
       fprintf(stderr,"Final Subrun[%d] completed\n", sort->subrun); return(-1);
    }
    filename = subrun_filename(sort, ++sort->subrun);
-   if( (arg->data_fp=fopen(filename,"r")) == NULL ){
+   if( (sort->data_fp=fopen(filename,"r")) == NULL ){
       fprintf(stderr,"can't open %s to read\n", filename);  return(-1);
    }
    fprintf(stdout,"sorting subrun %d\n", sort->subrun);
    return(0);
 }
 
-char *subrun_filename(Sortfile *sort, int subrun)
+char *subrun_filename(Sort_status *sort, int subrun)
 {
    static char name[256];
    int len, digits;
    char tmp[64];
 
+   //printf("run: %i, run digits: %i, subrun digits: %i\n",sort->run, sort->run_digits, sort->subrun_digits);
+
    sprintf(name, "%s/run", sort->data_dir);
 
    sprintf(tmp,"%d", sort->run); digits = strlen(tmp);
    len = strlen(name);
-   while( digits++ < sort->run_digits ){ name[len] = '0'; name[++len+1] = 0; }
+   while( digits++ < sort->run_digits ){ name[len] = '0'; name[1+len++] = 0; }
    sprintf(name+strlen(name),"%d_", sort->run);
 
    sprintf(tmp,"%d", subrun);  digits = strlen(tmp);
@@ -1559,29 +1141,26 @@ char *subrun_filename(Sortfile *sort, int subrun)
    return(name);
 }
 
-int close_sortfiles(Sort_status *arg)
+int close_sortfiles(Sort_status *sort)
 {  // data_fp usually closed in nxtsubrun
-   if( arg->online_mode ){ return(0); } // no files in this mode
-   if( arg->data_fp != NULL ){ fclose(arg->data_fp); }
-   fclose(arg->histo_fp);
-   free_sortfile(&filelist[arg->current_filenum]);
+   if( sort->online_mode ){ return(0); } // no files in this mode
+   if( sort->data_fp != NULL ){ fclose(sort->data_fp); }
+   fclose(sort->histo_fp);
+   free_sortfile(sort);
    return(0);
 }
 
-int free_sortfile(Sortfile *sort)
+int free_sortfile(Sort_status *sort)
 {
-   if( sort->histo_dir  != NULL ){ free(sort->histo_dir);  }
-   if( sort->histo_name != NULL ){ free(sort->histo_name); }
    if( sort->data_dir   != NULL ){ free(sort->data_dir);   }
    if( sort->data_name  != NULL ){ free(sort->data_name);  }
-   if( sort->conf_dir   != NULL ){ free(sort->conf_dir);   }
-   if( sort->conf_name  != NULL ){ free(sort->conf_name);  }
-   memset((char *)sort, 0, sizeof(Sortfile));
+   memset(sort->data_dir, 0, sizeof(sort->data_dir));
+   memset(sort->data_name, 0, sizeof(sort->data_name));
    return(0);
 }
 
 // read sun/subrun from filename, then count #digits in each
-int run_number(Sort_status *arg, Sortfile *sort, char *name)
+int run_number(Sort_status *arg, char *name)
 {
    char *ptr = name, fmt[16], tmp[256];
    FILE *fp;
@@ -1592,22 +1171,22 @@ int run_number(Sort_status *arg, Sortfile *sort, char *name)
       return(-1);
    } ptr += 3;
    while( 1 ){
-      if( !isdigit(*ptr) ){ sort->run_digits = ptr-name-3; break; }
+      if( !isdigit(*ptr) ){ arg->run_digits = ptr-name-3; break; }
       ++ptr;
    }
    if( *ptr != 0 ){               // name contains stuff after run number ...
       if( *ptr == '_' ){
-         if( sscanf(name, "run%d_%d.mid", &sort->run, &sort->subrun) != 2 ){
+         if( sscanf(name, "run%d_%d.mid", &arg->run, &arg->subrun) != 2 ){
             fprintf(stderr,"can't read run and subrun number in %s\n", name);
             return(-1);
          }
-         sort->subrun_digits = -1; ++ptr; while( 1 ){
+         arg->subrun_digits = -1; ++ptr; while( 1 ){
             if( !isdigit(*ptr) ){
-               sort->subrun_digits = ptr-name-4-sort->run_digits;  break;
+               arg->subrun_digits = ptr-name-4-arg->run_digits;  break;
             }
             ++ptr;
          }
-         if( sort->subrun_digits == -1 ){
+         if( arg->subrun_digits == -1 ){
             fprintf(stderr,"can't read subrun number in %s\n", name);
             return(-1);
          }
@@ -1624,16 +1203,16 @@ int run_number(Sort_status *arg, Sortfile *sort, char *name)
          return(-1);
       }
    } else {               // name only contains run number - sort all subruns
-      sort->subrun = -1;
-      if( sscanf(name, "run%d.mid", &sort->run) != 1 ){
+      arg->subrun = -1;
+      if( sscanf(name, "run%d.mid", &arg->run) != 1 ){
          fprintf(stderr,"can't read run number in %s\n", name);
          return(-1);
       }
       for(i=1; i<5; i++){ // look for up to 5 subrun digits (usually 3)
          sprintf(fmt, "%%s/%%s_%%0%dd.mid", i);
-         sprintf(tmp, fmt, sort->data_dir, name, 0 );
+         sprintf(tmp, fmt, arg->data_dir, name, 0 );
          if( (fp = fopen(tmp,"r")) == NULL ){ continue; }
-         sort->subrun_digits = i; fclose(fp); return(0);
+         arg->subrun_digits = i; fclose(fp); return(0);
       }
       fprintf(stderr,"can't open subrun0 for datafile:%s\n", name);
       return(-1);
@@ -1644,7 +1223,6 @@ int run_number(Sort_status *arg, Sortfile *sort, char *name)
 int end_current_sortfile(int fd)
 {
    Sort_status *arg;
-   Sortfile *sort;
 
    arg = get_sort_status();
    arg->end_of_data = 1; //arg-> shutdown_midas = 1;
@@ -1659,7 +1237,7 @@ int end_current_sortfile(int fd)
 
 int send_datafile_list(char *path, int fd, int type)
 {
-   char tmp[256];  Sortfile *tmp_srt;
+   char tmp[256];  Sort_status *tmp_srt;
    int nlen, run, subrun, entry=0;
    struct dirent *d_ent;
    DIR *d;
@@ -1671,7 +1249,7 @@ int send_datafile_list(char *path, int fd, int type)
    }
    set_directory(configs[0], "Data", path);
    if( type == 1 ){
-      if( (tmp_srt  = calloc(sizeof(Sortfile),    1)) == NULL ){
+      if( (tmp_srt  = calloc(sizeof(Sort_status),    1)) == NULL ){
          fprintf(stderr,"send_datafile_list: failed alloc\n");
       }
    } else { tmp_srt = NULL; }
@@ -1716,43 +1294,6 @@ int send_datafile_list(char *path, int fd, int type)
    }
    //put_line(fd, " ]\n", 3 );
    if( tmp_srt != NULL ){ free(tmp_srt); }
-   return(0);
-}
-
-int send_histofile_list(char *path, int fd)
-{
-   int nlen, run, subrun, first_entry=1;
-   char tmp[128];
-   struct dirent *d_ent;
-   DIR *d;
-   if( (d=opendir(path)) == NULL ){
-      sprintf(tmp,"can't open directory, %s\n",path);
-      fprintf(stderr,"can't open directory %s\n", path);
-      return(-1);
-   }
-
-   //put_line(fd, " [ \n", 4 );
-   while( (d_ent = readdir(d)) != NULL ){
-      //fprintf(stdout,"File[%s] ...\n", d_ent->d_name);
-      if( strncmp(d_ent->d_name, ".", 1) == 0 ){
-         continue; // Ignore
-      }
-      //if( sscanf(d_ent->d_name, "run%d.tar",    &run         ) != 1 &&
-      //    sscanf(d_ent->d_name, "run%d_%d.tar", &run, &subrun) != 2 ){
-      //   continue; // Not Midas Histogram File
-      //}
-      nlen = strlen(d_ent->d_name);
-      if( strncmp(d_ent->d_name+nlen-4, ".tar", 4)     != 0 ){
-         continue; // Not Midas HistoFilename Extension
-      }
-      if( first_entry == 1 ){
-         first_entry = 0;
-      } else {
-         //put_line(fd, " , \n ", 5 );
-      }
-      //put_line(fd, d_ent->d_name, strlen(d_ent->d_name) );
-   }
-   //put_line(fd, " ]\n", 3 );
    return(0);
 }
 

@@ -1,8 +1,8 @@
-#define MAX_SAMPLE_LEN  4096
-#define ENERGY_BINS    65536 /* 65536 131072 262144 */
-#define NUM_CHAN        4096
+#define MAX_SAMPLE_LEN   4096
+#define ENERGY_BINS      65536 /* 65536 131072 262144 */
+#define NUM_CHAN         4096
 #define MAX_SCALAR_LEN   256
-#define MAX_COINC_EVENTS 1024
+#define MAX_COINC_EVENTS 4096
 
 #include <stdint.h> //allows uint8_t and similiar types
 
@@ -45,7 +45,3 @@ extern uint64_t insert_presort_win(Grif_event *ptr, int slot, FILE *out);
 extern uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out);
 extern int GetIDfromAddress(unsigned short addr);
 
-// User sort function declarations
-extern int calc_coincvars(Grif_event *ptr1, Grif_event *ptr2);
-extern int user_removefrom_window(int win_strt, int new_frag);
-extern int test_gates(Grif_event *ptr, Grif_event *alt);

@@ -16,7 +16,7 @@
 
 int sort_next_file(Config *cfg, Sort_status *sort);
 
-int coinc_events_cutoff = 25;
+int coinc_events_cutoff = 64;
 char midas_runtitle[SYS_PATH_LENGTH];
 Sort_metrics diagnostics;
 static Sort_status sort_status;
@@ -32,6 +32,7 @@ int main(int argc, char *argv[])
       fprintf(stdout,"    number will then be sorted.\n\n");
       exit(0);
    }
+   srand(28719747); //seed random number generator (use fixed seed so that results are consistent between sorts)
    Sort_status *sort = &sort_status;
    int web_arg=1;  Config *cfg;
    init_config();
@@ -242,7 +243,7 @@ uint64_t insert_presort_win(Grif_event *ptr, int slot, FILE *out)
    int window_width = 500; // 5us to capture all pileup events - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
    Grif_event *alt;
-   long dt;
+   int64_t dt;
    uint64_t numSort = 0;
 
    /*
@@ -295,7 +296,7 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
    int window_width = 200; // 2us - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
    Grif_event *alt;
-   long dt;
+   int64_t dt;
    uint64_t numSort = 0;
 
    /* i = (slot-1-window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
@@ -326,7 +327,7 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
      // NOTE event[slot] is out of window - use slot-1 as window-end
      if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
      if( alt->chan != -1 ){ ++sorted;
-         numSort += (uint64_t)fill_smol_entry(out, sort_window_start, win_end, SORT_ONE);
+         numSort += (uint64_t)fill_smol_entry(out, sort_window_start, win_end);
       } else { ++skipped; }
       if( ++sort_window_start >= MAX_COINC_EVENTS ){ sort_window_start=0; } // WRAP
       ++grifevent_rdpos;  ++completed_events;

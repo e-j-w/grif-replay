@@ -1028,7 +1028,7 @@ int add_sortfile(char *path)
    ext_len = ( strncmp(path+plen-4, ".mid", 4) == 0 ) ? 4 : 0;
    for(i=plen; i>=0; i--){ if( path[i] == '/' ){ ++i; break; } }
    if( (dlen = i) == -1 ){ dlen = 0; } // no directory separator in path
-   if( (sort->data_dir = malloc(dlen + 2)) == NULL ){
+   if( (sort->data_dir = malloc((size_t)(dlen + 2))) == NULL ){
       fprintf(stderr,"can't alloc string for data_dir");
       free_sortfile(sort); return(-1);
    }
@@ -1053,7 +1053,7 @@ int add_sortfile(char *path)
       fname = subrun_filename(sort, i);
          if( stat(fname, &statbuf) != 0 ){
             fprintf(stderr,"can't stat multi-subrun: %s\n", path);
-            fprintf(stderr,"fname: %s\n", fname);
+            //fprintf(stderr,"fname: %s\n", fname);
             break;
          }
          sort->data_size += (long)statbuf.st_size;
@@ -1106,7 +1106,9 @@ int open_next_subrun(Sort_status *sort)
    if( (sort->data_fp=fopen(filename,"r")) == NULL ){
       fprintf(stderr,"can't open %s to read\n", filename);  return(-1);
    }
-   fprintf(stdout,"sorting subrun %d\n", sort->subrun);
+   fprintf(stdout,"==============================================\n");
+   fprintf(stdout,"============= SORTING SUBRUN %3d =============\n", sort->subrun);
+   fprintf(stdout,"==============================================\n");
    return(0);
 }
 

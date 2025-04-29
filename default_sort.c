@@ -31,53 +31,68 @@ extern Grif_event grif_event[MAX_COINC_EVENTS];
 
 // Default sort function declarations
 extern int init_time_diff_gates(Config *cfg);
-extern uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const int flag);
+extern uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
+
+//generates a random double value on the interval [-0.5,0.5]
+double randomDbl(){
+  return (((double)(rand()) / (double)(RAND_MAX)) - 0.5);
+}
+
+//get the CFD corrected time
+double getGrifTime(Grif_event *ptr){
+  return ((double)(ptr->ts) + randomDbl())*10.0;
+}
+
+double getGrifEnergy(Grif_event *ptr){
+  double correctedE = (ptr->energy*1.0 + randomDbl());
+  return ((double)offsets[ptr->chan]) + correctedE*(((double)gains[ptr->chan]) + correctedE*quads[ptr->chan]);
+}
 
 // odb tables need to be transferred into config, which is saved with histos
 int init_default_sort(Config *cfg, Sort_status *arg)
 {
-   Cal_coeff *cal;
-   int i, j;
+  Cal_coeff *cal;
+  int i, j;
 
-   // Initialize all pileup parameters to unset values
-   for(i=0; i<odb_daqsize; i++){
-     for(j=0; j<7; j++){
-       pileupk1[i][j] = pileupk2[i][j] = pileupE1[i][j] = -1;
-     }
-   }
+  // Initialize all pileup parameters to unset values
+  for(i=0; i<odb_daqsize; i++){
+    for(j=0; j<7; j++){
+      pileupk1[i][j] = pileupk2[i][j] = pileupE1[i][j] = -1;
+    }
+  }
 
-   cfg->odb_daqsize = odb_daqsize;
-   for(i=0; i<odb_daqsize; i++){ // update config with odb info
-     edit_calibration(cfg, chan_name[i], offsets[i], gains[i], quads[i], pileupk1[i], pileupk2[i], pileupE1[i],
-       chan_address[i],  dtype_table[i], arg->cal_overwrite );
-     }
-     // ALSO need to transfer config info to the arrays that are used in sort
-     for(i=0; i<odb_daqsize; i++){
+  cfg->odb_daqsize = odb_daqsize;
+  for(i=0; i<odb_daqsize; i++){ // update config with odb info
+    edit_calibration(cfg, chan_name[i], offsets[i], gains[i], quads[i], pileupk1[i], pileupk2[i], pileupE1[i],
+      chan_address[i],  dtype_table[i], arg->cal_overwrite );
+  }
+  // ALSO need to transfer config info to the arrays that are used in sort
+  for(i=0; i<odb_daqsize; i++){
 
-       cal = cfg->calib[i];
-       if( strcmp(chan_name[i], cal->name) != 0 ){ // conf not in odb order
-         for(j=0; j<cfg->ncal; j++){ cal = cfg->calib[j];
-           if( strcmp(chan_name[i], cal->name) == 0 ){ break; }
-         }
-         if( j == cfg->ncal ){ continue; } // not found in config
-       }
+    cal = cfg->calib[i];
+    if( strcmp(chan_name[i], cal->name) != 0 ){ // conf not in odb order
+      for(j=0; j<cfg->ncal; j++){ cal = cfg->calib[j];
+        if( strcmp(chan_name[i], cal->name) == 0 ){ break; }
+      }
+      if( j == cfg->ncal ){ continue; } // not found in config
+    }
 
-       // overwrite = 0 => USE CONFIG NOT ODB for offset, gain, quads
-       if( arg->cal_overwrite == 0 ){
-         offsets[i]=cal->offset; gains[i]=cal->gain;  quads[i]=cal->quad;
-       }
+    // overwrite = 0 => USE CONFIG NOT ODB for offset, gain, quads
+    if( arg->cal_overwrite == 0 ){
+      offsets[i]=cal->offset; gains[i]=cal->gain;  quads[i]=cal->quad;
+    }
 
-       // Pileup parameters do not exist in the MIDAS ODB so must always be copied from the config
-       for(j=0; j<7; j++){
-         pileupk1[i][j] = (isnan(cal->pileupk1[j])) ? 0.0 : cal->pileupk1[j];
-         pileupk2[i][j] = (isnan(cal->pileupk2[j])) ? 0.0 : cal->pileupk2[j];
-         pileupE1[i][j] = (isnan(cal->pileupE1[j])) ? 0.0 : cal->pileupE1[j];
-       }
-     }
+    // Pileup parameters do not exist in the MIDAS ODB so must always be copied from the config
+    for(j=0; j<7; j++){
+      pileupk1[i][j] = (isnan(cal->pileupk1[j])) ? 0.0 : cal->pileupk1[j];
+      pileupk2[i][j] = (isnan(cal->pileupk2[j])) ? 0.0 : cal->pileupk2[j];
+      pileupE1[i][j] = (isnan(cal->pileupE1[j])) ? 0.0 : cal->pileupE1[j];
+    }
+  }
 
-   init_time_diff_gates(cfg);
+  init_time_diff_gates(cfg);
 
-   return(0);
+  return(0);
 }
 
 //#######################################################################
@@ -139,8 +154,7 @@ int init_time_diff_gates(Config *cfg){
 // before any presort/singles/coinc-sorting
 int apply_gains(Grif_event *ptr)
 {
-  int caen_ts_offset = -60; // this value (-60) aligns the timestamps of HPGe with ZDS(CAEN)
-  float energy,psd;
+  float energy;
   int chan = ptr->chan;
 
   // Protect against invalid channel numbers
@@ -180,21 +194,6 @@ int apply_gains(Grif_event *ptr)
     }
   }
 
-  // The TAC module produces its output signal around 2 microseconds later
-  // than the start and stop detector signals are processed.
-  if( ptr->subsys == SUBSYS_TAC_LABR || ptr->subsys == SUBSYS_TAC_ZDS || ptr->subsys == SUBSYS_TAC_ART){
-    ptr->ts -= tac_ts_offset[crystal_table[ptr->chan]-1]; // Subtract some amount from TAC timestamps
-  }
-
-  // DESCANT detectors
-  // use psd for Pulse Shape Discrimination provides a distinction between neutron and gamma events
-  //if( ptr->subsys == SUBSYS_DESCANT || ptr->subsys == SUBSYS_DESWALL){
-  if( ptr->subsys == SUBSYS_DESWALL){
-    //ptr->ts -= caen_ts_offset; // Subtract from CAEN timestamps to align coincidences
-    psd = ( ptr->q != 0 ) ? (spread(ptr->cc_short) / ptr->q) : 0;
-    ptr->psd = (int)(psd*1000.0); // psd = long integration divided by short integration
-  }
-
   return(0);
 }
 
@@ -205,8 +204,7 @@ int apply_gains(Grif_event *ptr)
 int pre_sort(int frag_idx, int end_idx)
 {
   Grif_event *alt2, *alt, *ptr = &grif_event[frag_idx];
-  float desw_median_distance = 1681.8328; // descant wall median source-to-detector distance in mm
-  int i, j, dt, dt13, tof;
+  int i, j, dt, dt13;
   float q1,q2,q12,k1,k2,k12,e1,e2,e12,m,c;
   int chan,found,pos;
   float energy,correction;
@@ -415,82 +413,6 @@ int pre_sort(int frag_idx, int end_idx)
         //    (don't currently have this for BGO)
         if( crystal_table[ptr->chan]/16 == crystal_table[alt->chan]/16 ){ ptr->suppress = 1; }
       }
-      // Germanium addback -
-      //    earliest fragment has the sum energy, others are marked -1
-      // Remember the other crystal channel number in ab_alt_chan for use in Compton Polarimetry
-      if( (dt >= addback_window_min && dt <= addback_window_max) && alt->subsys == SUBSYS_HPGE_A ){
-        if( alt->esum >= 0 && crystal_table[alt->chan]/16 == crystal_table[ptr->chan]/16 ){
-          ptr->esum += alt->esum; alt->esum = -1; ptr->ab_alt_chan = alt->chan;
-        }
-      }
-      break;
-      case SUBSYS_RCMP:
-      // RCMP Front-Back coincidence
-      // Ensure its the same DSSD and that the two events are front and back
-      // The charged particles enter the P side and this has superior energy resolution
-      // Ensure the energy collected in the front and back is similar
-      ptr->esum = -1; // Need to exclude any noise and random coincidences.
-      if( (dt >= rcmp_fb_window_min && dt <= rcmp_fb_window_max) && alt->subsys == SUBSYS_RCMP && (ptr->ecal>0 && ptr->ecal<32768)){
-        if((crystal_table[ptr->chan] == crystal_table[alt->chan]) && (polarity_table[ptr->chan] != polarity_table[alt->chan]) && (alt->ecal > 0  && ptr->ecal<32768)){
-          if( ((ptr->ecal / alt->ecal)<=1.1 && (ptr->ecal / alt->ecal)>=0.9)){
-            // Ensure esum comes from P side, but use this timestamp
-            ptr->esum = polarity_table[ptr->chan]==0 ? ptr->ecal : (polarity_table[ptr->chan]==1 ? alt->ecal : -1);
-          }
-        }
-      }
-      break;
-      case SUBSYS_TAC_ZDS:
-      // ZDS TAC spectra
-      if( alt->subsys == SUBSYS_ZDS_A ){
-        // For TAC08 the start is ZDS and the stop is any of the LaBr3. So this is three detector types.
-        // Here in the presort we will remember the ZDS information that is in coincidence with the TAC.
-        // In the TAC event we save the ZDS chan as ab_alt_chan, and the ZDS energy as e4cal.
-        // So later in the main coincidence loop we only need to examine LBL and TAC.
-        if( dt >= zds_tac_window_min && dt <= zds_tac_window_max ){
-          ptr->ab_alt_chan = alt->chan; ptr->e4cal = alt->ecal;
-        }
-      }
-      break;
-      case SUBSYS_TAC_ART:
-      // ARIES TAC spectra
-      if( alt->subsys == SUBSYS_ARIES_A ){
-        // For TAC08 the start is ARIES and the stop is any of the LaBr3. So this is three detector types.
-        // Here in the presort we will remember the ARIES tile that is in coincidence with the TAC.
-        // In the TAC event we save the tile chan as ab_alt_chan, and the tile energy as e4cal.
-        // So later in the main coincidence loop we only need to examine LBL and TAC.
-        if( dt >= art_tac_window_min && dt <= art_tac_window_max ){
-          ptr->ab_alt_chan = alt->chan; ptr->e4cal = alt->ecal;
-        }
-      }
-      break;
-      case SUBSYS_LABR_L:
-      // LaBr3 TAC spectra
-      if( alt->subsys == SUBSYS_TAC_LABR ){
-        // For TAC01-07 we have a LBL-LBL coincidence
-        // Here save the LBL Id number and the LBL energy in the TAC event
-        // Save LBL channel number into ptr->q2 or q3 or q4
-        // Save LBL energy ecal into TAC ptr-ecal2 or ecal3 or ecal4
-        if( dt >= lbl_tac_window_min && dt <= lbl_tac_window_max ){
-          if(alt->e2cal<1){
-            alt->q2 = ptr->chan; alt->e2cal = ptr->ecal;
-          }else if(ptr->e3cal<1){
-            alt->q3 = ptr->chan; alt->e3cal = ptr->ecal;
-          }else{
-            alt->q4 = ptr->chan; alt->e4cal = ptr->ecal; // If this is set then we have LBL multiplicity >2 for this TAC
-          }
-        }
-      }
-      break;
-      case SUBSYS_ZDS_B: // CAEN Zds
-      if(alt->subsys == SUBSYS_DESWALL){
-        if(dt >= desw_beta_window_min && dt <= desw_beta_window_max){
-          // Calculate time-of-flight and correct it for this DESCANT detector distance
-          tof = (spread(abs(ptr->cfd - alt->cfd))*2.0) + 100; //if( tof < 0 ){ tof = -1*tof; }
-          //  fprintf(stdout,"tof: %d - %d = %f\n",ptr->cfd, alt->cfd, tof);
-          alt->energy4 = (int)(tof); // Time of flight
-          alt->e4cal = (int)(spread(tof) * DSW_tof_corr_factor[crystal_table[alt->chan]-1]); // Corrected Time of Flight
-        }
-      }
       break;
       default: break; // Unrecognized or unprocessed subsys type
     }// end of switch
@@ -500,7 +422,7 @@ int pre_sort(int frag_idx, int end_idx)
 
 //writes data for a single sorted_evt in a SMOL tree
 int lastWinIdx = -1;
-uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const int flag)
+uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
 {
   //fprintf(stdout,"Called fill entry for win: %i, frag: %i, last win: %i\n",win_idx,frag_idx,lastWinIdx);
   if(win_idx == 0){
@@ -510,7 +432,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
     lastWinIdx = -1; //wrap
     return 0;
   }
-  if((win_idx < (MAX_COINC_EVENTS-1)) && (win_idx <= lastWinIdx)){
+  if(win_idx <= lastWinIdx){
     return 0; //don't double fill
   }
   Grif_event *ptr;
@@ -539,26 +461,31 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const 
     }
     if( i != win_idx && i==frag_idx ){ break; }
     if( ptr->dtype == 15 ){ if( i==frag_idx ){ break; } continue; } // scalar*/
-
+    
     switch(ptr->subsys){
       case SUBSYS_HPGE_A: // Ge
         // Only use GRGa
-        int c1 = crystal_table[ptr->chan];
-        if( c1 >= 0 && c1 < 64){
-          if(sortedEvt->header.numHPGeHits >= MAX_EVT_HIT){
-            break;
+        if(ptr->suppress == 0){
+          //passes Compton suppression
+          int c1 = crystal_table[ptr->chan];
+          if( c1 >= 0 && c1 < 64){
+            if(sortedEvt->header.numHPGeHits >= MAX_EVT_HIT){
+              break;
+            }
+            double grifT = getGrifTime(ptr);
+            //fprintf(stdout,"ts: %li, time: %f ns\n",ptr->ts,grifT);
+            if(sortedEvt->header.evtTimeNs == 0){
+              sortedEvt->header.evtTimeNs = grifT;
+            }
+            sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].energy = (float)getGrifEnergy(ptr);
+            sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].timeOffsetNs = (float)(grifT - sortedEvt->header.evtTimeNs);
+            sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core = (uint8_t)(c1);
+            if(sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core >= 64){
+              fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core);
+              break;
+            }
+            sortedEvt->header.numHPGeHits++;
           }
-          if(sortedEvt->header.evtTimeNs == 0){
-            sortedEvt->header.evtTimeNs = (double)(ptr->ts); //why is time an integer? (why not...?)
-          }
-          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].energy = offsets[ptr->chan]+((float)ptr->energy)*((float)(gains[ptr->chan]+((float)ptr->energy)*quads[ptr->chan]));
-          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].timeOffsetNs = (float)(ptr->ts - sortedEvt->header.evtTimeNs);
-          sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core = (uint8_t)(c1);
-          if(sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core >= 64){
-            fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core);
-            break;
-          }
-          sortedEvt->header.numHPGeHits++;
         }
         break; // outer-switch-case-GE
       case SUBSYS_BGO:

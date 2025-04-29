@@ -10,19 +10,13 @@
 
 #include "grif-replay.h"
 
-int send_spectrum_list(char *name, int fd);
-int send_spectrum(int num, char urlarg[][STRING_LEN], char *, int fd);
-int send_sort_status(int fd);
-int send_datafile_list(char *path, int fd, int type);
-int send_file_details(char *path, int fd);
 int add_sortfile(char *path);
 int open_next_sortfiles(Sort_status *arg);
 int free_sortfile(Sort_status *sort);
 int close_sortfiles(Sort_status *arg);
 int end_current_sortfile(int fd);
-void unload_midas_module();
 int pre_sort(int frag_idx, int end_idx);
-uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx, const int flag);
+uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
 int sort_built_event(int window_start, int win_end, FILE *out);
 
 #define DEFAULT_CONFIG "last.json"

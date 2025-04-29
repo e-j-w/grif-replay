@@ -34,13 +34,15 @@ extern int init_time_diff_gates(Config *cfg);
 extern uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
 
 //generates a random double value on the interval [-0.5,0.5]
+//for smoothing purposes
 double randomDbl(){
   return (((double)(rand()) / (double)(RAND_MAX)) - 0.5);
 }
 
 //get the CFD corrected time
 double getGrifTime(Grif_event *ptr){
-  return ((double)(ptr->ts) + randomDbl())*10.0;
+  long cfdCorrTs = (ptr->ts & 0xFFFFFFFFFFFC0000); //timestamp, excluding lower 18 bits
+  return ((double)cfdCorrTs + ((double)ptr->cfd/16.0) + randomDbl())*10.0;
 }
 
 double getGrifEnergy(Grif_event *ptr){

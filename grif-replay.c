@@ -307,31 +307,31 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
           debug_show_ts(grif_event[window_start].ts) );
    */
    while( sort_window_start != slot ){ alt = &grif_event[sort_window_start];
-       win_count = (slot - sort_window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
+      win_count = (slot - sort_window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
       dt = ptr->ts - alt->ts; if( dt < 0 ){ dt *= -1; }
-      
+
       // should exit while-loop when no more events outside window
       //    *BUT* add error recovery - if window too full, dump events
       if( dt < window_width ){
-       //if( win_count >= 0.45*MAX_COINC_EVENTS ){ ++sortfull; } else {
+         //if( win_count >= 0.45*MAX_COINC_EVENTS ){ ++sortfull; } else {
          if( win_count > coinc_events_cutoff ){ ++sortfull; } else {
             // now removed all events not in coinc with newly added fragment
             //   so can update coinc window counters with just-added frag
             break;
          }
       }
-      // event[win_start] is leaving window
-      //    ( either because dt > coincwidth OR due to error recovery)
-      // NOTE event[slot] is out of window - use slot-1 as window-end
-      if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
-      if( alt->chan != -1 ){ ++sorted;
+
+     // event[win_start] is leaving window
+     //    ( either because dt > coincwidth OR due to error recovery)
+     // NOTE event[slot] is out of window - use slot-1 as window-end
+     if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
+     if( alt->chan != -1 ){ ++sorted;
          numSort += (uint64_t)fill_smol_entry(out, sort_window_start, win_end, SORT_ONE);
-         //printf("Sorted %u events\n",numSort);
-         //user_sort(window_start, win_end, SORT_ONE);
       } else { ++skipped; }
       if( ++sort_window_start >= MAX_COINC_EVENTS ){ sort_window_start=0; } // WRAP
       ++grifevent_rdpos;  ++completed_events;
    }
+   //printf("insert_sort_win - sorted %u event(s)\n",numSort);
    return numSort;
 }
 

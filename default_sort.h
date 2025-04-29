@@ -6,36 +6,45 @@
 //########         Subsystem and Detector definitions          ##########
 //#######################################################################
 
-#define SUBSYS_HPGE      0
-#define SUBSYS_BGO       1
-#define SUBSYS_SCEPTAR   2
-#define SUBSYS_PACES     3
-#define SUBSYS_LABR_BGO  4
-#define SUBSYS_LABR_T    5
-#define SUBSYS_LABR_L    6
-#define SUBSYS_DESCANT   7
-#define SUBSYS_ARIES     8
-#define SUBSYS_ZDS       9
-#define SUBSYS_RCMP     10
-#define SUBSYS_DES_WALL 12
-
-#define MAX_SUBSYS 24
+// do not alter order without also changing subsys_e_vs_e, subsys_dt
+#define MAX_SUBSYS      24
+#define SUBSYS_HPGE_A    0
+#define SUBSYS_PACES     1
+#define SUBSYS_LABR_L    2
+#define SUBSYS_RCMP      3
+#define SUBSYS_ARIES_A   4
+#define SUBSYS_ZDS_A     5 // GRIF16
+#define SUBSYS_TAC_LABR  6
+#define SUBSYS_LABR_BGO  7
+#define SUBSYS_BGO       8
+#define SUBSYS_SCEPTAR   9
+#define SUBSYS_DESCANT  10
+#define SUBSYS_DESWALL  11
+#define SUBSYS_DSG      12
+#define SUBSYS_IGNORE   13
+#define SUBSYS_HPGE_B   16
+#define SUBSYS_ARIES_B  17 // CAEN
+#define SUBSYS_ZDS_B    18 // CAEN
+#define SUBSYS_TAC_ZDS  19
+#define SUBSYS_TAC_ART  20
+#define SUBSYS_UNKNOWN  23
 static char subsys_handle[MAX_SUBSYS][8] = {
-  "GRG", "GRS", "SEP",  "PAC",
-  "LBS", "LBT", "LBL",  "DSC",
-  "ART", "ZDS", "RCS",  "XXX",
-  "DSW",    "",    "",    "",
-  "",    "",    "",    "",
-  "",    "",    "",    ""
+  "GRGA", "PAC",  "LBL",  "RCS",
+  "ARTA", "ZDSA", "LBT",  "LBS",
+  "BGO",  "SEP",  "DSC",  "DSW",
+  "DSG", "XXX1", "XXX2", "XXX3",
+  "GRGB", "ARTB", "ZDSB", "", // secondary names start after #16
+  "",     "",     "",     "UNK"
 };
 static char subsys_name[MAX_SUBSYS][STRING_LEN] = {
-   "Griffin",  "BGO",   "SCEPTAR",   "PACES", //  0- 3
-   "LaBrS",    "LaBrT", "LaBrX",   "Descant", //  4- 7
-   "ARIES",    "ZDS",   "RCMP",        "XXX", //  8-11
-   "DES_WALL",    "",      "",         "",    // 12-15
-   "",         "",      "",         "",
-   "",         "",       "",        "Unknown"
+  "Griffin", "PACES",   "LaBrX",   "RCMP",     //  0- 3
+  "ARIES",   "ZDSA",    "TAC_LBL",   "LaBrS",    //  4- 7
+  "BGO",     "Sceptar", "Descant", "DES_WALL", //  8-11
+  "Des_Ancil", "Ignore1", "Ignore2", "Ignore3",  // 12-15
+  "Grif_B",  "ARS_B",   "ZDS_B",   "TAC_ZDS",      // 16-19
+  "TAC_ART",      "",        "",        "Unknown"   // 20-23
 }; // final entry will be used if not found - make sure it is not empty
+// #####################################################################
 
 #define N_CLOVER 16
 #define N_HPGE 64
@@ -51,19 +60,21 @@ static char subsys_name[MAX_SUBSYS][STRING_LEN] = {
 //#######################################################################
 
 #define MULT_SPEC_LENGTH         128
-#define E_SPEC_LENGTH           8192
-#define E_TAC_SPEC_LENGTH      16384
+#define E_SPECLEN               8192
+#define E_TAC_SPECLEN          16384
+#define ECAL_TAC_SPECLEN        1024
 #define E_TOF_SPEC_LENGTH       8192
 #define E_PSD_SPEC_LENGTH       1024
-#define E_2D_TOF_SPEC_LENGTH    1024
-#define E_2D_SPEC_LENGTH        4096
-#define E_2D_RCMP_SPEC_LENGTH   6400
+#define E_2D_TOF_SPECLEN        1024
+#define E_2D_SPECLEN            4096
+#define E_2D_RCMP_SPECLEN       6400
+#define E_3D_LBL_SPECLEN      160000  // 400*400
+#define E_3D_TAC_SPECLEN        1024
 //#define T_SPEC_LENGTH     8192
 //#define WV_SPEC_LENGTH    4096
 #define DT_SPEC_LENGTH          1024
-#define GE_ANG_CORR_SPEC_LENGTH 4096
-#define DSW_ANG_CORR_SPEC_LENGTH 4096
-#define SYMMETERIZE 0 // When the ybins are set to zero for a 2D histogram it will be symmeterized
+#define GE_ANGCOR_SPECLEN       4096
+#define DSW_ANGCOR_SPECLEN      4096
 
 //#######################################################################
 //########        Individual channel singles HISTOGRAMS        ##########
@@ -80,10 +91,39 @@ TH1I    *e_hist[MAX_DAQSIZE];
 #define N_HITPAT  7
 char hit_handles[N_HITPAT][32]={ "q_hit","e_hit","t_hit","w_hit","r_hit", "s_hit", "d_hit" };
 char   hit_names[N_HITPAT][32]={
-   "Pulse_Height", "Energy", "Time", "Waveform", "Rate", "Subsys", "DetType",
+  "Pulse_Height", "Energy", "Time", "Waveform", "Rate", "Subsys", "DetType",
 };
 TH1I  *hit_hist[N_HITPAT], *mult_hist[MAX_SUBSYS];
 
+// DESCANT Wall
+TH1I  *desw_tof[N_DES_WALL];                // Time-Of-Flight
+TH1I  *desw_tof_corr[N_DES_WALL];           // corrected Time-Of-Flight
+TH1I  *desw_tof_psd[N_DES_WALL];            // corrected Time-Of-Flight, PSD gated
+TH1I  *desw_psd[N_DES_WALL];                // Pulse Shape Discrimination
+
+
+
+//#######################################################################
+//########                PRESORT Time Gates                   ##########
+//#######################################################################
+
+// The definition of the time difference gate in 10 nanosecond units.
+// The value is the maximum time difference in 10 nanosecond units.
+// The default values set here are replaced by the Global value at start of sorting.
+static int bgo_window_min = 0;
+static int addback_window_min = 0;
+static int rcmp_fb_window_min = 0;
+static int lbl_tac_window_min = 0;
+static int art_tac_window_min = 0;
+static int zds_tac_window_min = 0;
+static int desw_beta_window_min = 0;
+static int bgo_window_max = 20;
+static int addback_window_max = 20;
+static int rcmp_fb_window_max = 10;
+static int lbl_tac_window_max = 25;
+static int art_tac_window_max = 25;
+static int zds_tac_window_max = 25;
+static int desw_beta_window_max = 80;
 
 //#######################################################################
 //########                Coincidence Time Gates               ##########
@@ -100,19 +140,9 @@ static int time_diff_gate_max[MAX_SUBSYS][MAX_SUBSYS];
 //########          Sums and coincidence  HISTOGRAMS           ##########
 //#######################################################################
 
-// test
-TH2I  *test_histogram;
-
-// HPGe
-TH1I  *ge_ab_e[N_CLOVER];
-TH1I  *ge_sum, *ge_sum_ab;  // ge_sum is sum of crystal energies
-TH1I  *ge_sum_us, *ge_sum_ds, *ge_sum_ab_us, *ge_sum_ab_ds;  // ge_sum is sum of crystal energies
-TH1I  *ge_sum_b; // beta-gated gamma sum spectrum
-TH1I  *ge_sum_b, *ge_sum_b_sep, *ge_sum_b_zds, *ge_sum_b_art; // beta-gated gamma sum spectrum per ancillary
-
 // HPGe pileup
-#define NUM_PILEUP_CLASSES 15
-static char ge_pu_class_handles[NUM_PILEUP_CLASSES][32]={
+#define N_PU_CLASSES 15
+static char ge_pu_class_handles[N_PU_CLASSES][HANDLE_LENGTH]={
   "PU0",                          //  0    = Pu=0 error
   "PU1_NHIT1", "PU1_NHIT1_error", //  1, 2 = Single Hit, single hit error
   "PU1_NHIT2", "PU2_NHIT1",       //  3, 4 = 2Hit pile-up, corrected Hit1, corrected Hit2
@@ -122,18 +152,25 @@ static char ge_pu_class_handles[NUM_PILEUP_CLASSES][32]={
   "PU1_NHIT3", "PU2_NHIT2", "PU3_NHIT1", "NHIT3_error", // 10-13, Three pile-up events, Hit1, Hit2, Hit3, error
   "Other_PU" // 14
 };
-static char ge_pu_class_titles[NUM_PILEUP_CLASSES][32]={
+static char ge_pu_class_sum_titles[N_PU_CLASSES][HANDLE_LENGTH]={
   "PU_zero",
   "single_hit", "error_single_hit", // Single Hit, single hit error
   "2Hit_PU_Type_A_1stHit", "2Hit_PU_Type_A_2ndHit", "2Hit_PU_Type_B_1stHit", "2Hit_PU_Type_B_2ndHit", "2Hit_PU_Type_C_1stHit", "2Hit_PU_Type_C_2ndHit", "2Hit_PU_error", // Two pile-up events, corrected Hit1, corrected Hit2, separate Hit1, separate Hit2, error
   "3Hit_PU_1stHit", "3Hit_PU_2ndHit", "3Hit_PU_3rdHit", "3Hit_PU_error", // 3 pile-up events, Hit1, Hit2, Hit3, error
   "Other_PU"
 };
+static char ge_pu_class_2d_titles[N_PU_CLASSES][HANDLE_LENGTH]={
+  "E_vs_k_PU_zero",
+  "E_vs_k_single_hit", "E_vs_k_error_single_hit", // Single Hit, single hit error
+  "E_vs_k_2Hit_PU_Type_A_1stHit", "E_vs_k_2Hit_PU_Type_A_2ndHit", "E_vs_k_2Hit_PU_Type_B_1stHit", "E_vs_k_2Hit_PU_Type_B_2ndHit", "E_vs_k_2Hit_PU_Type_C_1stHit", "E_vs_k_2Hit_PU_Type_C_2ndHit", "E_vs_k_2Hit_PU_error", // Two pile-up events, corrected Hit1, corrected Hit2, separate Hit1, separate Hit2, error
+  "E_vs_k_3Hit_PU_1stHit", "E_vs_k_3Hit_PU_2ndHit", "E_vs_k_3Hit_PU_3rdHit", "E_vs_k_3Hit_PU_error", // 3 pile-up events, Hit1, Hit2, Hit3, error
+  "E_vs_k_Other_PU"
+};
 TH1I  *ge_pu_type; // The value of pile-up type
 TH1I  *ge_nhits_type; // The value of nhits type
 TH1I  *ge_pu_class; // The value of pile-up class
-TH1I  *ge_sum_class[NUM_PILEUP_CLASSES]; // Ge energy for each pile-up value
-TH2I  *ge_e_vs_k_class[NUM_PILEUP_CLASSES]; // Ge energy vs k for each pile-up value
+TH1I  *ge_sum_class[N_PU_CLASSES]; // Ge energy for each pile-up value
+TH2I  *ge_e_vs_k_class[N_PU_CLASSES]; // Ge energy vs k for each pile-up value
 TH2I  *ge_xtal_1hit, *ge_xtal_2hit, *ge_xtal_3hit; // Ge energy vs crystal number for 1, 2, 3 hit PU.
 TH1I  *ge_1hit[N_HPGE]; // Ge single hit events
 TH1I  *ge_2hit[N_HPGE]; // Ge 2-hit pileup events
@@ -146,6 +183,17 @@ TH2I  *ge_e_vs_k_2hit_second[N_HPGE]; // Ge Hit2 energy vs k2 for 2-hit pileup e
 TH2I  *ge_PU2_e2_v_k_gatedxrays[N_HPGE]; // Ge e2 vs k2 for fixed e1 energy gates
 TH2I  *ge_PU2_e2_v_k_gated1408[N_HPGE]; // Ge e2 vs k2 for fixed e1 energy gates
 
+// for most subsystem-pair-combinations, there is a
+// a 1d time-difference and a 2d ecal-vs-ecal matrix
+TH2I *subsys_e_vs_e[MAX_SUBSYS][MAX_SUBSYS];
+TH1I *subsys_dt[MAX_SUBSYS][MAX_SUBSYS];
+TH1I *tac_lbl_ts_diff[N_TACS];
+
+// HPGe (ge_sum is sum of crystal energies, ge_sum_b is beta-gated)
+TH1I  *ge_ab_e[N_CLOVER], *ge_sum_ab;
+TH1I  *ge_sum, *ge_sum_us, *ge_sum_ds, *ge_sum_ab_us, *ge_sum_ab_ds;
+TH1I  *ge_sum_b, *ge_sum_b, *ge_sum_b_sep, *ge_sum_b_zds, *ge_sum_b_art, *ge_sum_b_art_brems;
+
 // ARIES, PACES and LaBr3
 TH1I  *aries_sum;  // aries_sum is sum of tile energies
 TH1I  *paces_sum;  // paces_sum is sum of crystal energies
@@ -153,68 +201,84 @@ TH1I  *labr_sum;  // labr_sum is sum of crystal energies
 
 // RCMP
 TH1I  *rcmp_sum, *rcmp_fb_sum;  // rcmp_sum is sum of strip energies, fb is with front-back coincidence
-char rcmp_strips_handles[N_RCMP_POS][32]={ "RCS01_E_strips","RCS02_E_strips","RCS03_E_strips","RCS04_E_strips","RCS05_E_strips","RCS06_E_strips" };
 TH2I  *rcmp_strips[N_RCMP_POS];
-char rcmp_hit_handles[N_RCMP_POS][32]={ "RCS01_PN_hits","RCS02_PN_hits","RCS03_PN_hits","RCS04_PN_hits","RCS05_PN_hits","RCS06_PN_hits" };
-char rcmp_fb_handles[N_RCMP_POS][32]={ "RCS01_Front_Back","RCS02_Front_Back","RCS03_Front_Back","RCS04_Front_Back","RCS05_Front_Back","RCS06_Front_Back" }; // front-back
 TH2I  *rcmp_hit[N_RCMP_POS];
 TH2I  *rcmp_fb[N_RCMP_POS];
 
 // DESCANT WALL
-TH1I  *desw_tof[N_DES_WALL];  // DESCANT Wall Time-Of-Flight
-TH1I  *desw_tof_corr[N_DES_WALL];  // DESCANT Wall corrected Time-Of-Flight
-TH1I  *desw_tof_psd[N_DES_WALL];  // DESCANT Wall corrected Time-Of-Flight, PSD gated
-TH1I  *desw_psd[N_DES_WALL];  // DESCANT Wall Pulse Shape Discrimination
-TH1I  *desw_sum_e, *desw_sum_tof, *desw_sum_psd;  // DESCANT Wall Sums of energies and corrected time-of-fligts and PSD
-TH1I  *desw_sum_e_b, *desw_sum_tof_b;  // DESCANT Wall Beta-tagged Sums of energies and corrected time-of-fligts
-TH1I  *desw_sum_e_nn, *desw_sum_tof_nn;  // DESCANT Wall fold>2 Sums of energies and corrected time-of-fligts
-TH1I  *desw_sum_e_nn_a, *desw_sum_tof_nn_a;  // DESCANT Wall fold>2, angle>60 Sums of energies and corrected time-of-fligts
-TH2I  *desw_psd_e, *desw_psd_tof; // DESCANT Wall PSD vs energies or corrected-TOF
+TH1I  *desw_sum_e, *desw_sum_tof, *desw_sum_psd;  // Sums of energies and corTOF and PSD
+TH1I  *desw_sum_e_b, *desw_sum_tof_b;       // Beta-tagged Sums of energies and corTOF
+TH1I  *desw_sum_e_nn, *desw_sum_tof_nn;     // fold>2 Sums of energies and corTOF
+TH1I  *desw_sum_e_nn_a, *desw_sum_tof_nn_a; // fold>2, angle>60 Sums of energies and corTOF
+TH2I  *desw_psd_e, *desw_psd_tof;           // PSD vs energies or corrected-TOF
 
 // TAC spectra
-TH1I *tac_labr_hist[(int)((N_LABR)*(N_LABR-1)/2)+1]; // this index numbers are the LaBr-LaBr position numbers
+TH1I *tac_labr_hist[(int)((N_LABR)*(N_LABR-1)/2)+2]; // this index numbers are the LaBr-LaBr position numbers
+TH1I *tac_labr_hist_uncal[(int)((N_LABR)*(N_LABR-1)/2)+2]; // this index numbers are the LaBr-LaBr position numbers
 // One additional histogram (2_1) needed for Compton Walk corrections
-TH2I *tac_labr_CompWalk[N_LABR]; // First LBL gated on 1332keV, this matrix is second LBL E vs TAC
+TH2I *tac_labr_CompWalk[N_LABR];         // First LBL gated on 1332keV, this matrix is second LBL E vs TAC
 int tac_labr_hist_index[N_LABR][N_LABR]; // index for filling tac_labr_hist from LBL id numbers
-TH1I *tac_aries_lbl_hist[N_LABR];  // this index number is the LaBr position number
-TH1I *tac_aries_art_hist[N_ARIES];  // this index number is the Aries position number
-TH1I *tac_aries_lbl_sum;  // ARIES TAC sum spectrum of all LBLs
-TH1I *tac_aries_art_sum;  // ARIES TAC sum spectrum of all ARTs
-TH1I *aries_tac;  // aries_tac gated on 1275keV peak
-TH1I *aries_tac_Egate;  // aries_tac gated on 1275keV peak
-TH1I *aries_tac_artEn;  // aries energy in coincidence with TAC
+TH1I *tac_gated_lbl[N_LABR];             // TAC-gated LBL energy spectrum to check anode threshold in analogue CFD
+TH1I *final_tac[N_TACS], *final_tac_sum; // Final TAC spectra after all calibration and alignment
+TH1I *tac_aries_lbl[N_LABR];             // this index number is the LaBr position number
+TH1I *tac_aries_art[N_ARIES];            // this index number is the Aries position number
+TH1I *tac_aries_lbl_sum;                 // ARIES TAC sum spectrum of all LBLs
+TH1I *tac_aries_art_sum;                 // ARIES TAC sum spectrum of all ARTs
+TH1I *aries_tac;                         // aries_tac gated on 1275keV peak
+TH1I *aries_tac_Egate;                   // aries_tac gated on 1275keV peak
+TH1I *aries_tac_artEn;                   // aries energy in coincidence with TAC
 TH2I *lblE_tac, *zdsE_tac, *ariesE_tac;  // lbl or zds or aries energy vs TAC
+TH2I *lbl_lbl_tac;                       // A special 3d histogram disguised as a 2d histogram
 
-// Energy vs detector number 2D histograms
-TH2I  *ge_xtal,
-      *bgo_xtal, *bgof_xtal, *bgos_xtal, *bgob_xtal, *bgoa_xtal,
-      *labr_xtal, *labr_tac_xtal,
-      *paces_xtal,
-      *aries_xtal, *art_tac_xtal,
-      *desw_e_xtal, *desw_tof_xtal;
+// 2D Energy vs detector number
+TH2I *ge_xtal, *bgo_xtal, *bgof_xtal, *bgos_xtal, *bgob_xtal, *bgoa_xtal, *labr_xtal;
+TH2I *labr_tac_xtal, *paces_xtal, *aries_xtal, *art_tac_xtal, *desw_e_xtal, *desw_tof_xtal;
 
-// Time difference spectra
-#define N_DT 26
-char dt_handles[N_DT][32]={ "dt_ge_ge", "dt_ge_bgo", "dt_ge_sep", "dt_ge_zds",  // 0-3
-                            "dt_ge_pac", "dt_ge_labr", "dt_ge_rcmp", "dt_pac_zds", // 4-7
-                            "dt_pac_labr", "dt_rcmp_rcmp", "dt_ge_art", "dt_labr_art", // 8-11
-                            "dt_paces_art", "dt_art_art", "dt_art_tac", "dt_zds_tac", "dt_labr_tac", "dt_labr_zds", // 12-17
-                            "dt_dsw_dsw", "dt_dsw_ge", "dt_dsw_art", "dt_dsw_zds", // 18-21
-                            "dt_zds_GRIF_CAEN_10ns", "dt_zds_GRIF_CAEN_2ns", "dt_dsw_dsw_2ns", "dt_dsw_zds_2ns"  }; // 22-25
-TH1I  *dt_hist[N_DT];
-TH1I  *dt_tacs_hist[N_TACS];
+#define N_DT 27   // Time difference
+char dt_handles[N_DT][HANDLE_LENGTH]={
+  "dt_ge_ge",      "dt_ge_bgo",     "dt_ge_sep",             "dt_ge_zds",     // 0-3
+  "dt_ge_pac",     "dt_ge_labr",    "dt_ge_rcmp",            "dt_pac_zds",    // 4-7
+  "dt_pac_labr",   "dt_rcmp_rcmp",  "dt_ge_art",             "dt_labr_art",   // 8-11
+  "dt_paces_art",  "dt_art_art",    "dt_art_tac",            "dt_zds_tac",    // 12-15
+  "dt_labr_tac",   "dt_labr_zds",   "dt_dsw_dsw",            "dt_dsw_ge",     // 16-19
+  "dt_dsw_art",    "dt_dsw_zds",    "dt_zds_GRIF_CAEN_10ns", "dt_zds_GRIF_CAEN_2ns", // 20-23
+  "dt_dsw_dsw_2ns","dt_dsw_zds_2ns", "dt_labr_labr"  };                                      // 24-26
+  TH1I  *dt_hist[N_DT], *dt_tacs_hist[N_TACS];
 
-// Two-dimensional hitpatterns
-TH2I *gg_hit, *bgobgo_hit, *aa_hit, *gea_hit, *lba_hit, *dsw_hit;
+  // 2D hitpatterns
+  TH2I *gg_hit, *bgobgo_hit, *aa_hit, *gea_hit, *lba_hit, *dsw_hit;
 
-// En-En Coincidence matrices
-TH2I *gg, *gg_ab, *gg_opp, *gg_ab_opp, *ge_paces, *ge_labr, *ge_rcmp, *labr_labr, *labr_zds, *labr_rcmp, *ge_art, *ge_zds, *paces_art, *labr_art, *art_art, *dsw_dsw, *ge_dsw, *art_dsw;
+  // 2d Energy vs Energy Coincidence matrices
+  TH2I *gg, *gg_ab, *gg_opp, *ge_paces, *ge_labr, *ge_rcmp, *labr_labr, *labr_zds, *labr_rcmp;
+  TH2I *ge_art, *ge_zds, *paces_art, *labr_art, *art_art, *dsw_dsw, *ge_dsw, *art_dsw;
 
-// Angular Correlation histograms
-#define N_GE_ANG_CORR 52
-TH2I  *gg_ang_corr_110_hist[N_GE_ANG_CORR];
-TH2I  *gg_ang_corr_145_hist[N_GE_ANG_CORR];
-#define N_GRG_ART_ANG_CORR 114
-TH2I  *grg_art_ang_corr_hist[N_GRG_ART_ANG_CORR];
-#define N_DSW_DSW_ANG_CORR 42
-TH2I  *dsw_dsw_ang_corr_hist[N_DSW_DSW_ANG_CORR];
+  // Angular Correlation histograms
+  #define N_GE_ANG_CORR       52
+  #define N_GRG_ART_ANG_CORR 114
+  #define N_DSW_DSW_ANG_CORR  42
+  TH2I  *gg_angcor_110[N_GE_ANG_CORR];
+  TH2I  *gg_angcor_145[N_GE_ANG_CORR];
+  TH2I  *ge_art_angcor[N_GRG_ART_ANG_CORR];
+  TH2I  *dsw_angcor[N_DSW_DSW_ANG_CORR];
+
+  ////////////////////////////////////
+  ////////////////////////////////////
+
+  // LBT (TAC) timestamp offset values.
+  // These are subtracted in the apply_gains function
+  //int tac_ts_offset[12] = {60,60,60,60,60,60,60,60,60,60,60,60}; // From Dec 2024
+  //  int tac_ts_offset[12] = { 54, 64,406,137, 77,404,114,158, 0, 0, 0, 0}; // S2231_S2196_Nov2024
+  // int tac_ts_offset[12] = {134, 48, 74, 59, 48,400,395,  0, 0, 0, 0, 0}; // S1723, Aug 2021
+  int tac_ts_offset[12] = {60,60,60,60,60,60,60,60,60,60,60,60}; // Default 60 for Dec 2024 onwards. Set as Globals otherwise
+
+
+  // TAC coincidence combination offsets.
+  // These should not be here, they are a calibration and should be settable by the user.
+
+  // These are the offsets for aligning the TAC calibrated energy based on the two LaBr3 energies in coincidence
+  // 30 values
+  // They are set from Globals
+  int tac_lbl_combo_offset[(int)((N_LABR)*(N_LABR-1)/2)+2] = {
+    0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0,
+    0,0,0,0,0, 0,0,0,0,0, 0,0,0,0,0
+  };

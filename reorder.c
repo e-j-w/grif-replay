@@ -8,7 +8,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
-#include "grif-replay.h"
+#include "midas2smol.h"
 #include "midas-format.h"
 
 #define MAX_GRIFC 16

@@ -8,7 +8,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include "grif-replay.h"
+#include "midas2smol.h"
 
 int add_sortfile(char *path);
 int open_next_sortfiles(Sort_status *arg);

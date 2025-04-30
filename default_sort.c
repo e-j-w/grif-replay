@@ -32,10 +32,10 @@ extern Grif_event grif_event[MAX_COINC_EVENTS];
 // Default sort function declarations
 extern uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
 
-//generates a random double value on the interval [-0.5,0.5]
+//generates a random double value on the interval [0,1]
 //for smoothing purposes
 double randomDbl(){
-  return (((double)(rand()) / (double)(RAND_MAX)) - 0.5);
+  return ((double)(rand()) / (double)(RAND_MAX));
 }
 
 //get the CFD corrected time
@@ -439,7 +439,19 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
               fprintf(stderr,"WARNING: invalid GRIFFIN core: %u",sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core);
               break;
             }
-            sortedEvt->header.numHPGeHits++;
+            //filter out duplicate data
+            uint8_t dupFound = 0;
+            for(int i = 0; i<sortedEvt->header.numHPGeHits;i++){
+              if(sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].core == sortedEvt->hpgeHit[i].core){
+                if(fabs(sortedEvt->hpgeHit[sortedEvt->header.numHPGeHits].timeOffsetNs - sortedEvt->hpgeHit[i].timeOffsetNs) < 20.0){
+                  dupFound = 1; //duplicate hit found
+                }
+              }
+            }
+            if(dupFound == 0){
+              //hit is not a duplicate, so store it
+              sortedEvt->header.numHPGeHits++;
+            }
           }
         }
         break; // outer-switch-case-GE

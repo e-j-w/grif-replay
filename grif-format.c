@@ -1,7 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
-#include "grif-replay.h"
+#include "midas2smol.h"
 #include "grif-format.h"
 #include "midas-format.h"
 

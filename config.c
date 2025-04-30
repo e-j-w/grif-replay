@@ -91,7 +91,7 @@ wget 'http://panther:9093/?cmd=callspechandler&spectum0=Hitpattern_Energy&spectr
 #include <sys/stat.h>
 #include <ctype.h>
 #include "config.h"
-#include "grif-replay.h"
+#include "midas2smol.h"
 
 ///////////////////////////////////////////////////////////////////////////
 //////////////         Url  Command  interpreter          /////////////////
@@ -1008,10 +1008,10 @@ int add_sortfile(char *path)
 
    //get number of subruns
    sort->subrun = -1;
-   for(int i=0; ; i++){
+   for(i=0; ; i++){
       fname = subrun_filename(sort, i);
          if( stat(fname, &statbuf) != 0 ){
-            fprintf(stderr,"can't stat multi-subrun: %s\n", path);
+            //fprintf(stderr,"can't stat multi-subrun: %s\n", path);
             //fprintf(stderr,"fname: %s\n", fname);
             break;
          }
@@ -1065,9 +1065,9 @@ int open_next_subrun(Sort_status *sort)
    if( (sort->data_fp=fopen(filename,"r")) == NULL ){
       fprintf(stderr,"can't open %s to read\n", filename);  return(-1);
    }
-   fprintf(stdout,"==============================================\n");
-   fprintf(stdout,"============= SORTING SUBRUN %3d =============\n", sort->subrun);
-   fprintf(stdout,"==============================================\n");
+   fprintf(stdout,"\n================================================\n");
+   fprintf(stdout,"=============  SORTING SUBRUN %3d  =============\n", sort->subrun);
+   fprintf(stdout,"================================================\n\n");
    return(0);
 }
 

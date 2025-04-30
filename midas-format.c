@@ -5,7 +5,7 @@
 #include <unistd.h>
 #include <math.h>
 
-#include "grif-replay.h"
+#include "midas2smol.h"
 #include "midas-format.h"
 
 static char recbuf[RECORDSIZE];

@@ -7,10 +7,12 @@
 //this format is optimized for the smallest possible filesize, as disk read is the
 //typical bottleneck when sorting
 
-//SMOL tree files consist of sorted_evt structs written sequentially to disk
-//at the start of the file, there is a single uint64_t header value,
+//SMOL tree files consist of evt_header structs written to disk, followed
+//by N hpge_hit structs, where N=evt_header->numHPGeHits.
+//Each even is written sequentially to disk.
+//At the start of the SMOL tree file, there is a single uint64_t header value,
 //formatted as follows:
-// - bits 0 - 48:  number of (sorted_evt) events in the file
+// - bits 0 - 48:  totalnumber of events in the file
 // - bits 49 - 63: SMOL tree type (default 0, can be used to specify different tree formats)
 //Ideally, the SMOL tree type information can be used to specify different sorted_evt formats,
 //so that different experiment types can have optimized tree formats only containing the info

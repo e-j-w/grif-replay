@@ -1,7 +1,7 @@
 /* read midas data files
- set sources=( grif-replay.c midas-format.c grif-format.c config.c reorder.c user_sort.c default_sort.c test_config.c )
- gcc -g     -o grif-replay $sources -rdynamic -ldl -lm -lpthread
- gcc -g -O3 -o grif-replay $sources -rdynamic -ldl -lm -lpthread
+ set sources=( midas2smol.c midas-format.c grif-format.c config.c reorder.c user_sort.c default_sort.c test_config.c )
+ gcc -g     -o midas2smol $sources -rdynamic -ldl -lm -lpthread
+ gcc -g -O3 -o midas2smol $sources -rdynamic -ldl -lm -lpthread
 */
 
 #include <stdio.h>
@@ -24,7 +24,7 @@ FILE *output_tree;
 int main(int argc, char *argv[])
 {
    if(argc != 3){
-      fprintf(stdout,"  grif-replay midas_file output_SMOL_tree\n");
+      fprintf(stdout,"  midas2smol midas_file output_SMOL_tree\n");
       fprintf(stdout,"    MIDAS files are expected to be named using the\n");
       fprintf(stdout,"    standard run and subrun numbering scheme (eg.\n");
       fprintf(stdout,"    run29623_000.mid). Provide the path of the first \n");
@@ -99,6 +99,11 @@ int sort_next_file(Config *cfg, Sort_status *sort)
          uint64_t numSortedEvts = 0U; //placeholder
          fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
          numSortedEvts += sort_main(sort,smolfp); // this exits when sort is done
+         //number of sorted events can only be 48 bits
+         if(numSortedEvts > 0xFFFFFFFFFFFF){
+            printf("WARNING: number of output events (%lu) truncated to %lu.\n",numSortedEvts,(uint64_t)(numSortedEvts & 0xFFFFFFFFFFFF));
+         }
+         numSortedEvts &= 0xFFFFFFFFFFFF;
          fseek(smolfp,0,SEEK_SET);
          fwrite(&numSortedEvts,sizeof(uint64_t),1,smolfp);
          printf("Wrote %lu separated events to output file.\n",numSortedEvts);

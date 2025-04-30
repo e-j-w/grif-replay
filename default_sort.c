@@ -463,6 +463,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
     }
     if( i != win_idx && i==frag_idx ){ break; }
     if( ptr->dtype == 15 ){ if( i==frag_idx ){ break; } continue; } // scalar*/
+    //fprintf(stdout,"  checking index %i\n",i);
     
     switch(ptr->subsys){
       case SUBSYS_HPGE_A: // Ge
@@ -472,6 +473,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
           int c1 = crystal_table[ptr->chan];
           if( c1 >= 0 && c1 < 64){
             if(sortedEvt->header.numHPGeHits >= MAX_EVT_HIT){
+              fprintf(stderr,"WARNING: too many hits in win_idx %i, frag_idx %i",win_idx,frag_idx);
               break;
             }
             double grifT = getGrifTime(ptr);
@@ -498,10 +500,9 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
         break; // Unrecognized or unprocessed subsys type
     }// end of switch(ptr)
 
+    lastWinIdx = i;
     if( i==frag_idx ){ break; }
   }
-  lastWinIdx = i;
-  
   
   if((sortedEvt->header.numHPGeHits > 0)&&(sortedEvt->header.numHPGeHits <= MAX_EVT_HIT)){
 

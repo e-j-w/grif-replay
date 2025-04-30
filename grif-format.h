@@ -40,6 +40,7 @@ typedef struct griffin_fragment_struct { // was 74 bytes, now ?
 //   can just check this in midas part
 
 extern uint64_t process_event(Grif_event *ptr, int slot, FILE *out);
+//extern uint64_t build_event(Grif_event *ptr, int slot, FILE *out);
 extern int apply_gains(Grif_event *ptr);
 extern uint64_t insert_presort_win(Grif_event *ptr, int slot, FILE *out);
 extern uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out);

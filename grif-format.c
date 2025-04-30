@@ -215,10 +215,10 @@ int unpack_grif3_event(unsigned *evntbuf, int evlen, Grif_event *ptr, int proces
             ptr->trig_req =  value & 0x0fffffff;
             break;
          case 0xa:                                           /*  Time Stamp Lo */
-            ptr->timestamp   = ( value & 0x0fffffff );
+            ptr->timestamp   = (long)( value & 0x0fffffff );
             break;
          case 0xb:                               /* Time Stamp Hi and deadtime */
-            ptr->timestamp   |= ( (long)(value & 0x0003fff) << 28);
+            ptr->timestamp   |= (long)((value & 0x0003fff) << 28);
             ptr->deadtime     = ( (value & 0xfffc000) >> 14);
             ptr->ts = ptr->timestamp;
             break;

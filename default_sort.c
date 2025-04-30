@@ -30,7 +30,6 @@ static int subsys_initialized[MAX_SUBSYS];
 extern Grif_event grif_event[MAX_COINC_EVENTS];
 
 // Default sort function declarations
-extern int init_time_diff_gates(Config *cfg);
 extern uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
 
 //generates a random double value on the interval [-0.5,0.5]
@@ -43,6 +42,7 @@ double randomDbl(){
 double getGrifTime(Grif_event *ptr){
   long cfdCorrTs = (ptr->ts & 0xFFFFFFFFFFFC0000); //timestamp, excluding lower 18 bits
   return ((double)cfdCorrTs + ((double)ptr->cfd/16.0) + randomDbl())*10.0;
+  //return ((double)ptr->ts + randomDbl())*10.0;
 }
 
 double getGrifEnergy(Grif_event *ptr){
@@ -92,8 +92,6 @@ int init_default_sort(Config *cfg, Sort_status *arg)
     }
   }
 
-  init_time_diff_gates(cfg);
-
   return(0);
 }
 
@@ -105,52 +103,6 @@ float spread(int val){ return( val + rand()/(1.0*RAND_MAX) ); }
 int GetIDfromAddress(unsigned short addr){ // address must be an unsigned short
   return(address_chan[addr]);
 }
-
-int init_time_diff_gates(Config *cfg){
-  int i,j,k;
-  Global *global;
-  char tmp[32];
-
-  // Initialize all time differences between subsystems to be the default 250ns
-  for(i=0; i<MAX_SUBSYS; i++){
-    for(j=0; j<MAX_SUBSYS; j++){
-      time_diff_gate_min[i][j] = 0;  // default is 0 nanoseconds
-      time_diff_gate_max[i][j] = 25; // default is 250 nanoseconds
-    }
-  }
-
-  // Search the globals for time difference settings and overwrite their values
-  for(i=0; i<cfg->nglobal; i++){
-    global = cfg->globals[i];
-    sprintf(tmp,"%s",global->name);
-    if(strncmp(tmp,"time_diff_",10) == 0){
-      //fprintf(stdout,"Process %s\n",global->name);
-      // This global is a time difference value
-      // Identify the subsystem types and then save the value in the correct place
-      for(j=0; j<MAX_SUBSYS; j++){
-        if(strlen(subsys_handle[j])<2){ continue; }
-        if(strstr(tmp,subsys_handle[j]) > 0){
-          // Identiy the second subsystem type
-          //  fprintf(stdout,"Found %s in %s\n",subsys_handle[j],global->name);
-          for(k=0; k<MAX_SUBSYS; k++){
-            if(strlen(subsys_handle[k])<2){ continue; }
-            if(strstr(tmp,subsys_handle[k]) > 0 && (strstr(tmp,subsys_handle[k]) != strstr(tmp,subsys_handle[j]))){
-              // save the value in the correct place
-              fprintf(stdout,"time_diff_%s_%s set to %d,%d\n",subsys_handle[j],subsys_handle[k],global->min,global->max);
-              time_diff_gate_min[j][k] = global->min;
-              time_diff_gate_max[j][k] = global->max;
-              time_diff_gate_min[k][j] = global->min;
-              time_diff_gate_max[k][j] = global->max;
-            }
-          }
-        }
-      }
-    }
-  }
-
-  return(0);
-}
-
 
 // this is the first function to be called on processing an event -
 // before any presort/singles/coinc-sorting
@@ -450,7 +402,6 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
 
     if( i >= MAX_COINC_EVENTS ){ i=0; } //wrap 
     //if( i != win_idx && flag == SORT_ONE ){ break; }
-    if( i != win_idx && i==frag_idx ){ break; }
     if( ptr->dtype == 15 ){ if( i==frag_idx ){ break; } continue; } // scalar
     if( ptr->chan == -1 ){
         printf("DefSort: UNKNOWN_CHAN type=%d\n", ptr->dtype);
@@ -463,7 +414,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
     }
     if( i != win_idx && i==frag_idx ){ break; }
     if( ptr->dtype == 15 ){ if( i==frag_idx ){ break; } continue; } // scalar*/
-    //fprintf(stdout,"  checking index %i\n",i);
+    //fprintf(stdout,"  checking index %i (ts=%li)\n",i,ptr->ts);
     
     switch(ptr->subsys){
       case SUBSYS_HPGE_A: // Ge
@@ -473,7 +424,7 @@ uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx)
           int c1 = crystal_table[ptr->chan];
           if( c1 >= 0 && c1 < 64){
             if(sortedEvt->header.numHPGeHits >= MAX_EVT_HIT){
-              fprintf(stderr,"WARNING: too many hits in win_idx %i, frag_idx %i",win_idx,frag_idx);
+              fprintf(stderr,"WARNING: too many hits in win_idx %i, frag_idx %i\n",win_idx,frag_idx);
               break;
             }
             double grifT = getGrifTime(ptr);

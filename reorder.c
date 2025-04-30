@@ -22,7 +22,6 @@ volatile long tsevents_in;
 int reorder_events_read;
 
 // output ...
-#define TS_EVENT_BUFFER 8192
 volatile unsigned long output_ts;
 pthread_mutex_t nxtlock;
 long tsevents_out;
@@ -94,19 +93,19 @@ void reorder_main(Sort_status *arg)
       type = (((*evptr) >> 28) & 0xf);
       if( evstart == NULL && type != 0x8 ){ err_format=1; }
       switch(type){
-      case 0x8:
-         if( evstart != NULL ){ err_format=1; } else { evstart=evptr; }
-         grifc = ((*evptr) >> 16) & 0xF;  break;
-      case 0xE:
-         if( ts_stat != 2 ){ err_format=1; } ev_done = 1; break;
-      case 0xA:
-         if( ts_stat != 0 ){ err_format=1; }
-         tslo = *evptr & 0xFFFFFFF; ts_stat = 1; break;
-      case 0xB:
-         if( ts_stat != 1 ){ err_format=1; }
-         ts   = *evptr &    0x3FFF;
-         ts <<= 28; ts += tslo; ts_stat = 2; break;
-      default:  break;
+         case 0x8:
+            if( evstart != NULL ){ err_format=1; } else { evstart=evptr; }
+            grifc = ((*evptr) >> 16) & 0xF;  break;
+         case 0xE:
+            if( ts_stat != 2 ){ err_format=1; } ev_done = 1; break;
+         case 0xA:
+            if( ts_stat != 0 ){ err_format=1; }
+            tslo = *evptr & 0xFFFFFFF; ts_stat = 1; break;
+         case 0xB:
+            if( ts_stat != 1 ){ err_format=1; }
+            ts   = *evptr &    0x3FFF;
+            ts <<= 28; ts += tslo; ts_stat = 2; break;
+         default:  break;
       }
       ++len;
       ++bankbuf_rdpos; ++evptr; if( evptr >= bufend ){ evptr -= BANK_BUFSIZE; }

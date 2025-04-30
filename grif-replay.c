@@ -62,7 +62,6 @@ extern void reorder_out(Sort_status *arg);
 extern uint64_t sort_main(Sort_status *arg, FILE *out);
 static pthread_t midas_thread, grif_thread, ordthrd, ordthr2;
 static int reorder_save, singlethread_save, sortthread_save;
-extern int (*midas_module_main)(Sort_status *);
 int sort_next_file(Config *cfg, Sort_status *sort)
 {
    char tmp[64];
@@ -79,20 +78,12 @@ int sort_next_file(Config *cfg, Sort_status *sort)
    singlethread_save = sort->single_thread;
    sortthread_save = sort->sort_thread;
    if( singlethread_save == 1 ){
-      if( sort->online_mode ){
-         midas_module_main(sort);
-      } else {
-         midas_main(sort);
-      }
+      midas_main(sort);
    } else {
       printf("creating midas thread\n");
-      if( !sort->online_mode ){
-         pthread_create(&midas_thread, NULL, (void* (*)(void*))midas_main, sort);
-      } else {
-         pthread_create(&midas_thread, NULL, (void* (*)(void*))midas_module_main, sort);
-      }
+      pthread_create(&midas_thread, NULL, (void* (*)(void*))midas_main, sort);
       printf("creating reorder threads\n");
-      pthread_create(&ordthrd,NULL,(void* (*)(void*))reorder_main,sort);
+      pthread_create(&ordthrd,NULL,(void* (*)(void*))reorder_main, sort);
       pthread_create(&ordthr2,NULL,(void* (*)(void*))reorder_out, sort);
 
       while( !sort->odb_ready ){     // wait for midas thread to read odb event
@@ -234,7 +225,6 @@ char *debug_show_chan(Grif_event *ptr)
 }
 extern char chan_name[MAX_DAQSIZE][CHAN_NAMELEN];
 
-
 // add event to presort window (event has just been read in)
 //    recalculate coincwin (sorting any events leaving window)
 // => final win of run won't be sorted, as these events will not leave window
@@ -267,8 +257,9 @@ uint64_t insert_presort_win(Grif_event *ptr, int slot, FILE *out)
    */
 
    ///////////////// Presort window (used for suppression/addback)
-   while( presort_window_start != slot ){ alt = &grif_event[presort_window_start];
-   win_count = (slot - presort_window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
+   while( presort_window_start != slot ){ 
+      alt = &grif_event[presort_window_start];
+      win_count = (slot - presort_window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
       dt = ptr->ts - alt->ts; if( dt < 0 ){ dt *= -1; }
 
       // should exit while-loop when no more events outside window
@@ -307,26 +298,25 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
           i, window_start, slot-1,
           debug_show_ts(grif_event[window_start].ts) );
    */
-   while( sort_window_start != slot ){ alt = &grif_event[sort_window_start];
+   while( sort_window_start != slot ){
+      alt = &grif_event[sort_window_start];
       win_count = (slot - sort_window_start+2*MAX_COINC_EVENTS) % MAX_COINC_EVENTS;
       dt = ptr->ts - alt->ts; if( dt < 0 ){ dt *= -1; }
 
       // should exit while-loop when no more events outside window
       //    *BUT* add error recovery - if window too full, dump events
       if( dt < window_width ){
-         //if( win_count >= 0.45*MAX_COINC_EVENTS ){ ++sortfull; } else {
+       //if( win_count >= 0.45*MAX_COINC_EVENTS ){ ++sortfull; } else {
          if( win_count > coinc_events_cutoff ){ ++sortfull; } else {
-            // now removed all events not in coinc with newly added fragment
-            //   so can update coinc window counters with just-added frag
             break;
          }
       }
 
-     // event[win_start] is leaving window
-     //    ( either because dt > coincwidth OR due to error recovery)
-     // NOTE event[slot] is out of window - use slot-1 as window-end
-     if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
-     if( alt->chan != -1 ){ ++sorted;
+      // event[win_start] is leaving window
+      //    ( either because dt > coincwidth OR due to error recovery)
+      // NOTE event[slot] is out of window - use slot-1 as window-end
+      if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
+      if( alt->chan != -1 ){ ++sorted;
          numSort += (uint64_t)fill_smol_entry(out, sort_window_start, win_end);
       } else { ++skipped; }
       if( ++sort_window_start >= MAX_COINC_EVENTS ){ sort_window_start=0; } // WRAP
@@ -335,7 +325,6 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
    //printf("insert_sort_win - sorted %u event(s)\n",numSort);
    return numSort;
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////
 ///////// Alternate sort method [build complete events, then sort them] /////////
@@ -347,13 +336,14 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
 //    (previously would loop over events already in window to see if they are now OUT)
 // NEW method - if first event is OUT ...
 //    build an event with all fragments before current fragment (which starts a new event)
-/*int build_event(Grif_event *ptr, int slot, FILE *out)
+/*uint64_t build_event(Grif_event *ptr, int slot, FILE *out)
 {
    int window_width = 200; // 2us - MAXIMUM (indiv. gates can be smaller)
    int win_count, win_end;
    static int window_start;
    Grif_event *alt;
-   long dt;
+   int64_t dt;
+   uint64_t numSort = 0;
 
    if( window_start == slot ){ return(0); }
 
@@ -363,15 +353,16 @@ uint64_t insert_sort_win(Grif_event *ptr, int slot, FILE *out)
    if( dt < window_width ){ return(0); }
 
    if( (win_end = slot-1) < 0 ){ win_end = MAX_COINC_EVENTS-1; } // WRAP
-   sort_built_event(window_start, win_end, out);
+   numSort += sort_built_event(window_start, win_end, out);
 
    window_start = slot;
-   return(0);
+   return numSort;
 }
 
-int sort_built_event(int window_start, int win_end, FILE *out)
+uint64_t sort_built_event(int window_start, int win_end, FILE *out)
 {
+   uint64_t numSort = 0;
    pre_sort(window_start, win_end); // only fold of first fragment is set
-   fill_smol_entry(out, window_start, win_end, SORT_ALL);
-   return(0);
+   numSort += fill_smol_entry(out, window_start, win_end);
+   return numSort;
 }*/

@@ -17,7 +17,7 @@ int close_sortfiles(Sort_status *arg);
 int end_current_sortfile(int fd);
 int pre_sort(int frag_idx, int end_idx);
 uint8_t fill_smol_entry(FILE *out, const int win_idx, const int frag_idx);
-int sort_built_event(int window_start, int win_end, FILE *out);
+uint64_t sort_built_event(int window_start, int win_end, FILE *out);
 
 #define DEFAULT_CONFIG "last.json"
 
@@ -54,9 +54,6 @@ typedef struct histo_folder_struct {
    struct histo_folder_struct *next_folder;     // same level
    struct th1i_struct *first_histo;             // same level
 } Folder;
-
-typedef struct th1i_struct TH1I;
-typedef struct th2i_struct TH2I;
 
 #define DISK_CONFIG 0
 #define MEM_CONFIG  1

@@ -906,47 +906,6 @@ int set_midas_param(Config *cfg, char *name, char *value)
 }
 
 
-///////////////////////////////////////////////////////////////////////////
-/////////////////          Sorting Control          ///////////////////////
-///////////////////////////////////////////////////////////////////////////
-
-// have to run midas module as separate thread
-//   it has to run rpc server and uses callbacks when events arrive
-
-/* module directory usually needs to be in LD_LIBRARY_PATH */
-#include <dlfcn.h>
-int (*midas_module_main)(Sort_status *);
-void *midas_module_handle;
-char midas_host[64], midas_expt[64];
-int load_midas_module(char *host, char *expt)
-{
-   char *symbol = "midas_module_main";
-   char *file = "./midas_module.so";
-   void *symbol_handle;
-
-   // FnPtr: FnType *(*name)(arglist); // eg Char *(*func)(int);
-   // cast:  (FnType *(*)(arglist))    //    ptr = (char *(*)(int))sym;
-
-   if( host != NULL ){ strncpy(midas_host, host, 64); } else { midas_host[0] = 0; }
-   if( expt != NULL ){ strncpy(midas_expt, expt, 64); } else { midas_expt[0] = 0; }
-   midas_host[63] = midas_expt[63] = 0;
-
-   if( (midas_module_handle=dlopen(file, RTLD_LAZY)) == NULL){
-      printf("%s\n", dlerror() ); return(-1);
-   }
-   if( (symbol_handle=dlsym (midas_module_handle, symbol)) == NULL ){
-      printf("%s\n", dlerror() ); dlclose( midas_module_handle ); return(-1);
-   }
-   midas_module_main = (int (*)(Sort_status *))symbol_handle;
-   return(0);
-}
-void unload_midas_module()
-{
-   // must have deleted any pointers to module functions
-   //   (will crash if theyre called after closing)
-   dlclose(midas_module_handle); midas_module_handle = NULL;
-}
-
 #define READ_LIMIT (5*1024*1024) // don't read more than this looking for odb
 int read_datafile_info(Sort_status *sort, char *path)
 {
